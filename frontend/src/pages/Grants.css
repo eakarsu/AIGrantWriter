@@ -1,0 +1,39 @@
+.amount-text {
+  color: #10B981;
+  font-weight: 600;
+}
+
+.deadline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.deadline-badge.normal {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.deadline-badge.soon {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.deadline-badge.urgent {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.deadline-badge.expired {
+  background: #F3F4F6;
+  color: #6B7280;
+  text-decoration: line-through;
+}
+
+.deadline-badge small {
+  opacity: 0.8;
+}
