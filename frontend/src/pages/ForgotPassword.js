@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Link still used for "Sign in" link below
 import { api } from '../App';
 import { FiMail, FiCpu } from 'react-icons/fi';
 import './Login.css';
@@ -9,7 +9,6 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [resetToken, setResetToken] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -20,10 +19,7 @@ const ForgotPassword = () => {
 
     try {
       const response = await api.post('/auth/forgot-password', { email });
-      setSuccess(response.data.message);
-      if (response.data.resetToken) {
-        setResetToken(response.data.resetToken);
-      }
+      setSuccess(response.data.message || 'If that email exists, a reset link has been sent.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send reset link');
     } finally {
@@ -48,16 +44,6 @@ const ForgotPassword = () => {
 
           {error && <div className="login-error">{error}</div>}
           {success && <div className="login-success">{success}</div>}
-
-          {resetToken && (
-            <div className="login-success" style={{ wordBreak: 'break-all' }}>
-              <strong>Dev Mode Reset Token:</strong><br />
-              <code style={{ fontSize: 11 }}>{resetToken}</code><br />
-              <Link to={`/reset-password?token=${resetToken}`} style={{ color: '#166534', fontWeight: 600 }}>
-                Click here to reset password
-              </Link>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="login-form">
             <div className="input-group">

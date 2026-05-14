@@ -21,6 +21,9 @@ const Proposals = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailTab, setDetailTab] = useState('details');
+  const [versions, setVersions] = useState([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -230,7 +233,56 @@ const Proposals = () => {
 
   const openDetailModal = (item) => {
     setSelectedItem(item);
+    setDetailTab('details');
+    setVersions([]);
     setShowDetailModal(true);
+  };
+
+  const fetchVersions = async (id) => {
+    setVersionsLoading(true);
+    try {
+      const res = await api.get(`/proposals/${id}/versions`);
+      setVersions(res.data);
+    } catch (error) {
+      toast.error('Failed to fetch version history');
+    } finally {
+      setVersionsLoading(false);
+    }
+  };
+
+  const handleRestoreVersion = async (versionId) => {
+    try {
+      await api.post(`/proposals/${selectedItem.id}/versions/${versionId}/restore`);
+      toast.success('Version restored successfully');
+      fetchProposals();
+      setShowDetailModal(false);
+    } catch (error) {
+      toast.error('Failed to restore version');
+    }
+  };
+
+  const handleExportProposalPdf = (id) => {
+    const token = localStorage.getItem('token');
+    const url = `http://localhost:3001/api/proposals/${id}/export/pdf`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    // Use fetch to download with auth header
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (!res.ok) throw new Error('Export failed');
+        return res.blob();
+      })
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `proposal-${id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+        toast.success('PDF exported successfully');
+      })
+      .catch(() => toast.error('Failed to export PDF'));
   };
 
   const sortOptions = [
@@ -486,66 +538,141 @@ const Proposals = () => {
                 <FiX />
               </button>
             </div>
-            <div className="detail-content">
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <FiUsers className="detail-icon" />
-                  <div>
-                    <span className="detail-label">Organization</span>
-                    <span className="detail-value">{selectedItem.organization_name || 'N/A'}</span>
-                  </div>
-                </div>
-                <div className="detail-item">
-                  <FiTarget className="detail-icon" />
-                  <div>
-                    <span className="detail-label">Grant</span>
-                    <span className="detail-value">{selectedItem.grant_title || 'N/A'}</span>
-                  </div>
-                </div>
-                <div className="detail-item">
-                  <FiDollarSign className="detail-icon" />
-                  <div>
-                    <span className="detail-label">Amount Requested</span>
-                    <span className="detail-value">${selectedItem.amount_requested?.toLocaleString() || 'N/A'}</span>
-                  </div>
-                </div>
-                <div className="detail-item">
-                  <FiCalendar className="detail-icon" />
-                  <div>
-                    <span className="detail-label">Submission Date</span>
-                    <span className="detail-value">
-                      {selectedItem.submission_date
-                        ? new Date(selectedItem.submission_date).toLocaleDateString()
-                        : 'Not submitted'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="detail-section" style={{ marginTop: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3>Status</h3>
-                  <span className={`status-badge status-${selectedItem.status}`}>
-                    {selectedItem.status?.replace('_', ' ')}
-                  </span>
-                </div>
-              </div>
-              <div className="detail-section">
-                <h3>Content</h3>
-                <div style={{
-                  background: '#f8fafc',
-                  padding: '16px',
-                  borderRadius: '12px',
-                  maxHeight: '300px',
-                  overflow: 'auto',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {selectedItem.content || 'No content yet'}
-                </div>
-              </div>
+
+            {/* Tab bar */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', padding: '0 24px', gap: '4px' }}>
+              {['details', 'history'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setDetailTab(tab);
+                    if (tab === 'history' && versions.length === 0) fetchVersions(selectedItem.id);
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontWeight: detailTab === tab ? 700 : 400,
+                    borderBottom: detailTab === tab ? '2px solid #6366f1' : '2px solid transparent',
+                    color: detailTab === tab ? '#6366f1' : '#64748b',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {tab === 'history' ? 'History' : 'Details'}
+                </button>
+              ))}
             </div>
+
+            <div className="detail-content">
+              {detailTab === 'details' ? (
+                <>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <FiUsers className="detail-icon" />
+                      <div>
+                        <span className="detail-label">Organization</span>
+                        <span className="detail-value">{selectedItem.organization_name || 'N/A'}</span>
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <FiTarget className="detail-icon" />
+                      <div>
+                        <span className="detail-label">Grant</span>
+                        <span className="detail-value">{selectedItem.grant_title || 'N/A'}</span>
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <FiDollarSign className="detail-icon" />
+                      <div>
+                        <span className="detail-label">Amount Requested</span>
+                        <span className="detail-value">${selectedItem.amount_requested?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <FiCalendar className="detail-icon" />
+                      <div>
+                        <span className="detail-label">Submission Date</span>
+                        <span className="detail-value">
+                          {selectedItem.submission_date
+                            ? new Date(selectedItem.submission_date).toLocaleDateString()
+                            : 'Not submitted'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="detail-section" style={{ marginTop: '24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3>Status</h3>
+                      <span className={`status-badge status-${selectedItem.status}`}>
+                        {selectedItem.status?.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="detail-section">
+                    <h3>Content</h3>
+                    <div style={{
+                      background: '#f8fafc',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      maxHeight: '300px',
+                      overflow: 'auto',
+                      whiteSpace: 'pre-wrap'
+                    }}>
+                      {selectedItem.content || 'No content yet'}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="detail-section">
+                  <h3>Version History</h3>
+                  {versionsLoading ? (
+                    <p style={{ color: '#64748b' }}>Loading versions...</p>
+                  ) : versions.length === 0 ? (
+                    <p style={{ color: '#64748b' }}>No previous versions found. Versions are saved automatically each time you edit a proposal.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {versions.map((v) => (
+                        <div key={v.id} style={{
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '8px',
+                          padding: '12px 16px',
+                          background: '#f8fafc',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}>
+                          <div>
+                            <strong>Version {v.version_number}</strong>
+                            <div style={{ fontSize: '13px', color: '#64748b' }}>
+                              {new Date(v.created_at).toLocaleString()}
+                              {v.created_by_name ? ` · by ${v.created_by_name}` : ''}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                              {v.content ? v.content.substring(0, 100) + (v.content.length > 100 ? '...' : '') : 'No content'}
+                            </div>
+                          </div>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => handleRestoreVersion(v.id)}
+                            style={{ flexShrink: 0, marginLeft: '12px' }}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="form-actions">
               <button className="btn btn-danger" onClick={() => setConfirmDelete({ open: true, id: selectedItem.id })}>
                 <FiTrash2 /> Delete
+              </button>
+              <button className="btn btn-secondary" onClick={() => handleExportProposalPdf(selectedItem.id)}>
+                <FiDownload /> Export PDF
               </button>
               <button className="btn btn-primary" onClick={() => { setShowDetailModal(false); openModal(selectedItem); }}>
                 <FiEdit2 /> Edit

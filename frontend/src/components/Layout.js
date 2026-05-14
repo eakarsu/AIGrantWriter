@@ -27,6 +27,7 @@ const Layout = ({ children }) => {
     { path: '/deadlines', icon: FiCalendar, label: 'Deadline Tracker' },
     { path: '/funders', icon: FiSearch, label: 'Funder Research' },
     { path: '/ai-history', icon: FiClock, label: 'AI History' },
+    { path: '/advanced-ai', icon: FiCpu, label: 'Advanced AI' },
     { divider: true, label: 'Settings' },
     { path: '/settings', icon: FiSettings, label: 'Settings' },
   ];

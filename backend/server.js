@@ -8,13 +8,38 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
+const PDFDocument = require('pdfkit');
 
+// === Batch 04 Gaps & Frontend Mounts ===
+const route_gap_no_real_time_funder_deadline_change = require('./routes/gap-no-real-time-funder-deadline-change');
+const route_gap_no_proposal_style_consistency_enforcer_a = require('./routes/gap-no-proposal-style-consistency-enforcer-a');
+const route_gap_no_rejection_reason_classifier_for_past = require('./routes/gap-no-rejection-reason-classifier-for-past');
+const route_gap_backend_is_monolithic_no_routes_folder = require('./routes/gap-backend-is-monolithic-no-routes-folder');
+const route_gap_no_webhook_receivers_for_grant_portal = require('./routes/gap-no-webhook-receivers-for-grant-portal');
+const route_gap_no_real_time_collaboration_on_proposals = require('./routes/gap-no-real-time-collaboration-on-proposals');
+const route_gap_no_file_upload_pipeline_for_supporting = require('./routes/gap-no-file-upload-pipeline-for-supporting');
+const route_gap_no_e_signature_integration_for_proposal = require('./routes/gap-no-e-signature-integration-for-proposal');
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
 
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+});
+
+// Create proposal_versions table if needed
+pool.query(`
+  CREATE TABLE IF NOT EXISTS proposal_versions (
+    id SERIAL PRIMARY KEY,
+    proposal_id INTEGER REFERENCES proposals(id) ON DELETE CASCADE,
+    content TEXT,
+    version_number INTEGER,
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`).catch((err) => {
+  // Table may not be creatable yet if proposals table doesn't exist; ignore
+  console.warn('[DB init] proposal_versions:', err.message);
 });
 
 // ==================== SECURITY MIDDLEWARE ====================
@@ -162,10 +187,13 @@ app.post('/api/auth/register', authLimiter, [
     );
 
     const user = result.rows[0];
+    // In dev, log token to console instead of returning it in the response
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEV] Email verification token for ${email}: ${verificationToken}`);
+    }
     res.status(201).json({
       message: 'Registration successful. Please verify your email.',
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
-      verificationToken // In dev mode, return token directly
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -214,11 +242,13 @@ app.post('/api/auth/forgot-password', authLimiter, [
 
     // Always return success to prevent email enumeration
     if (result.rows.length > 0) {
-      // In production, send email. In dev, return token.
-      res.json({ message: 'If that email exists, a reset link has been sent.', resetToken });
-    } else {
-      res.json({ message: 'If that email exists, a reset link has been sent.' });
+      // In dev, log token to console; in production, send email
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
+        console.log(`[DEV] Reset link: http://localhost:5173/reset-password?token=${resetToken}`);
+      }
     }
+    res.json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (error) {
     console.error('Forgot password error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -657,6 +687,21 @@ app.put('/api/proposals/:id', authenticateToken, [
 ], validate, async (req, res) => {
   try {
     const { title, organization_id, grant_id, status, content, amount_requested, submission_date } = req.body;
+
+    // Save current version before updating
+    const current = await pool.query('SELECT content FROM proposals WHERE id = $1', [req.params.id]);
+    if (current.rows.length > 0) {
+      const versionCount = await pool.query(
+        'SELECT COUNT(*) FROM proposal_versions WHERE proposal_id = $1',
+        [req.params.id]
+      );
+      const nextVersion = parseInt(versionCount.rows[0].count) + 1;
+      await pool.query(
+        'INSERT INTO proposal_versions (proposal_id, content, version_number, created_by) VALUES ($1, $2, $3, $4)',
+        [req.params.id, current.rows[0].content, nextVersion, req.user.id]
+      ).catch(() => {}); // graceful fail if table doesn't exist yet
+    }
+
     const result = await pool.query(
       `UPDATE proposals SET title=$1, organization_id=$2, grant_id=$3, status=$4, content=$5, amount_requested=$6, submission_date=$7, updated_at=NOW()
        WHERE id=$8 RETURNING *`,
@@ -664,7 +709,148 @@ app.put('/api/proposals/:id', authenticateToken, [
     );
     res.json(result.rows[0]);
   } catch (error) {
+    console.error('Update proposal error:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/proposals/:id/versions
+app.get('/api/proposals/:id/versions', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT pv.*, u.name as created_by_name
+       FROM proposal_versions pv
+       LEFT JOIN users u ON pv.created_by = u.id
+       WHERE pv.proposal_id = $1
+       ORDER BY pv.version_number DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Fetch versions error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/proposals/:id/versions/:versionId/restore
+app.post('/api/proposals/:id/versions/:versionId/restore', authenticateToken, async (req, res) => {
+  try {
+    const versionResult = await pool.query(
+      'SELECT content FROM proposal_versions WHERE id = $1 AND proposal_id = $2',
+      [req.params.versionId, req.params.id]
+    );
+    if (versionResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+    const restoredContent = versionResult.rows[0].content;
+
+    // Save current as new version before restoring
+    const current = await pool.query('SELECT content FROM proposals WHERE id = $1', [req.params.id]);
+    if (current.rows.length > 0) {
+      const versionCount = await pool.query(
+        'SELECT COUNT(*) FROM proposal_versions WHERE proposal_id = $1',
+        [req.params.id]
+      );
+      const nextVersion = parseInt(versionCount.rows[0].count) + 1;
+      await pool.query(
+        'INSERT INTO proposal_versions (proposal_id, content, version_number, created_by) VALUES ($1, $2, $3, $4)',
+        [req.params.id, current.rows[0].content, nextVersion, req.user.id]
+      ).catch(() => {});
+    }
+
+    const updated = await pool.query(
+      'UPDATE proposals SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [restoredContent, req.params.id]
+    );
+    res.json({ message: 'Version restored', proposal: updated.rows[0] });
+  } catch (error) {
+    console.error('Restore version error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/proposals/:id/export/pdf
+app.get('/api/proposals/:id/export/pdf', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, o.name as organization_name, o.mission as organization_mission,
+             g.title as grant_title, g.funder_name, g.amount_min, g.amount_max
+      FROM proposals p
+      LEFT JOIN organizations o ON p.organization_id = o.id
+      LEFT JOIN grants g ON p.grant_id = g.id
+      WHERE p.id = $1
+    `, [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Proposal not found' });
+    }
+
+    const proposal = result.rows[0];
+
+    // Fetch budget if linked
+    const budgetResult = await pool.query(
+      'SELECT * FROM budgets WHERE proposal_id = $1 LIMIT 1',
+      [req.params.id]
+    ).catch(() => ({ rows: [] }));
+    const budget = budgetResult.rows[0];
+
+    // Generate PDF
+    const doc = new PDFDocument({ margin: 50 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="proposal-${proposal.id}.pdf"`);
+    doc.pipe(res);
+
+    // Title page
+    doc.fontSize(24).font('Helvetica-Bold').text(proposal.title, { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(14).font('Helvetica').text(`Organization: ${proposal.organization_name || 'N/A'}`, { align: 'center' });
+    doc.text(`Grant: ${proposal.grant_title || 'N/A'}`, { align: 'center' });
+    doc.text(`Funder: ${proposal.funder_name || 'N/A'}`, { align: 'center' });
+    if (proposal.amount_requested) {
+      doc.text(`Amount Requested: $${Number(proposal.amount_requested).toLocaleString()}`, { align: 'center' });
+    }
+    doc.text(`Status: ${proposal.status || 'draft'}`, { align: 'center' });
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+    doc.moveDown(2);
+
+    // Proposal content
+    if (proposal.content) {
+      doc.addPage();
+      doc.fontSize(16).font('Helvetica-Bold').text('Proposal Content');
+      doc.moveDown();
+      doc.fontSize(11).font('Helvetica').text(proposal.content, { lineGap: 4 });
+    }
+
+    // Budget table
+    if (budget) {
+      doc.addPage();
+      doc.fontSize(16).font('Helvetica-Bold').text('Budget Summary');
+      doc.moveDown();
+      const budgetFields = [
+        ['Title', budget.title],
+        ['Total Amount', budget.total_amount ? `$${Number(budget.total_amount).toLocaleString()}` : 'N/A'],
+        ['Personnel', budget.personnel ? `$${Number(budget.personnel).toLocaleString()}` : 'N/A'],
+        ['Equipment', budget.equipment ? `$${Number(budget.equipment).toLocaleString()}` : 'N/A'],
+        ['Supplies', budget.supplies ? `$${Number(budget.supplies).toLocaleString()}` : 'N/A'],
+        ['Travel', budget.travel ? `$${Number(budget.travel).toLocaleString()}` : 'N/A'],
+        ['Indirect', budget.indirect ? `$${Number(budget.indirect).toLocaleString()}` : 'N/A'],
+        ['Status', budget.status || 'N/A'],
+      ];
+      budgetFields.forEach(([label, value]) => {
+        doc.fontSize(11).font('Helvetica-Bold').text(`${label}: `, { continued: true });
+        doc.font('Helvetica').text(String(value || 'N/A'));
+      });
+      if (budget.narrative) {
+        doc.moveDown();
+        doc.fontSize(13).font('Helvetica-Bold').text('Budget Narrative');
+        doc.fontSize(11).font('Helvetica').text(budget.narrative, { lineGap: 4 });
+      }
+    }
+
+    doc.end();
+  } catch (error) {
+    console.error('PDF export error:', error);
+    res.status(500).json({ error: 'Failed to generate PDF' });
   }
 });
 
@@ -1341,7 +1527,14 @@ app.delete('/api/funders/:id', authenticateToken, async (req, res) => {
 // ==================== AI ROUTES (OpenRouter) ====================
 
 // Helper function to call OpenRouter API
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
+
 async function callOpenRouter(prompt, maxTokens = 3000) {
+  if (!process.env.OPENROUTER_API_KEY) {
+    const err = new Error('AI service unavailable: OPENROUTER_API_KEY not configured');
+    err.code = 'NO_AI_KEY';
+    throw err;
+  }
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -1351,7 +1544,7 @@ async function callOpenRouter(prompt, maxTokens = 3000) {
       'X-Title': 'AI Grant Writer'
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL,
+      model: OPENROUTER_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.7,
       max_tokens: maxTokens
@@ -1403,6 +1596,15 @@ app.post('/api/ai/generate-proposal', authenticateToken, aiLimiter, async (req, 
     }
     const grant = grantResult.rows[0];
 
+    // Fetch any existing draft proposal for this grant+org to use as context
+    const existingDraftResult = await pool.query(
+      `SELECT content FROM proposals
+       WHERE organization_id = $1 AND grant_id = $2 AND content IS NOT NULL AND content != ''
+       ORDER BY updated_at DESC LIMIT 1`,
+      [organization_id, grant_id]
+    ).catch(() => ({ rows: [] }));
+    const existingDraft = existingDraftResult.rows[0]?.content;
+
     const prompt = `You are an expert grant writer. Generate a compelling grant proposal for the following:
 
 ORGANIZATION DETAILS:
@@ -1421,6 +1623,7 @@ GRANT OPPORTUNITY:
 - Description: ${grant.description}
 
 ${additional_context ? `ADDITIONAL CONTEXT: ${additional_context}` : ''}
+${existingDraft ? `\nPREVIOUS DRAFT (use as reference and improve upon):\n${existingDraft.substring(0, 2000)}\n` : ''}
 
 Please generate a professional grant proposal with the following sections:
 1. Executive Summary
@@ -2225,12 +2428,579 @@ app.delete('/api/ai/results/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Generate a structured proposal outline from funder requirements
+app.post('/api/ai/proposal-outline-generator', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { funder_requirements, organization_id, project_summary } = req.body;
+
+    if (!funder_requirements) {
+      return res.status(400).json({ error: 'funder_requirements is required' });
+    }
+
+    let organization = null;
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+    }
+
+    const prompt = `You are an expert grant proposal strategist. Generate a detailed proposal outline based on the funder requirements provided.
+
+FUNDER REQUIREMENTS:
+${funder_requirements}
+
+${organization ? `ORGANIZATION CONTEXT:
+- Name: ${organization.name}
+- Mission: ${organization.mission || 'N/A'}
+- Description: ${organization.description || 'N/A'}` : ''}
+
+${project_summary ? `PROJECT SUMMARY:\n${project_summary}` : ''}
+
+Produce a complete outline with:
+1. **Executive Summary** - bullet points of key arguments
+2. **Statement of Need** - sub-sections to cover
+3. **Goals & Objectives** - SMART goal structure
+4. **Methodology / Project Design** - phased plan
+5. **Evaluation Plan** - measurement framework
+6. **Organizational Capacity** - what to include
+7. **Budget Narrative** - structure
+8. **Sustainability Plan** - sub-sections
+9. **Appendices Checklist**
+
+For each section: target word count, required content, and specific funder priorities to address. Use markdown.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'proposal-outline-generator',
+      title: `Proposal Outline${organization ? `: ${organization.name}` : ''}`,
+      content,
+      inputData: { funder_requirements, organization_id, project_summary },
+      metadata: { organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      outline: content,
+      model: data.model,
+      usage: data.usage,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI proposal outline error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate outline' });
+  }
+});
+
+// Gap analysis: identify org's qualification gaps vs. funder requirements
+app.post('/api/ai/gap-analysis', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { organization_id, funder_requirements } = req.body;
+
+    if (!organization_id || !funder_requirements) {
+      return res.status(400).json({ error: 'organization_id and funder_requirements are required' });
+    }
+
+    const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+    if (orgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    const organization = orgResult.rows[0];
+
+    const prompt = `You are a grant compliance expert performing a gap analysis between an organization's profile and a funder's requirements.
+
+ORGANIZATION PROFILE:
+- Name: ${organization.name}
+- Mission: ${organization.mission || 'N/A'}
+- Description: ${organization.description || 'N/A'}
+- Annual Budget: $${organization.annual_budget?.toLocaleString() || 'N/A'}
+- Staff Count: ${organization.staff_count || 'N/A'}
+- Year Founded: ${organization.year_founded || 'N/A'}
+
+FUNDER REQUIREMENTS:
+${funder_requirements}
+
+Provide a detailed gap analysis with:
+1. **Eligibility Match Summary** - overall fit score (0-100)
+2. **Strengths** - where the organization clearly meets requirements
+3. **Gaps Identified** - specific shortfalls (be precise)
+4. **Risk Areas** - concerns even if minimally compliant
+5. **Mitigation Recommendations** - concrete steps to close each gap
+6. **Go/No-Go Recommendation** - apply now, develop capacity first, or skip
+
+Use markdown with clear headings and a summary table.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'gap-analysis',
+      title: `Gap Analysis: ${organization.name}`,
+      content,
+      inputData: { organization_id, funder_requirements },
+      metadata: { organization: organization.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      analysis: content,
+      model: data.model,
+      usage: data.usage,
+      organization: organization.name,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI gap analysis error:', error);
+    res.status(500).json({ error: error.message || 'Failed to perform gap analysis' });
+  }
+});
+
+// Compliance checker: flag compliance gaps in proposal vs. funder requirements
+app.post('/api/ai/compliance-checker', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { proposal_content, funder_requirements } = req.body;
+
+    if (!proposal_content || !funder_requirements) {
+      return res.status(400).json({ error: 'proposal_content and funder_requirements are required' });
+    }
+
+    const prompt = `You are a meticulous grant compliance reviewer. Audit the proposal below against the funder's requirements and flag every compliance issue.
+
+FUNDER REQUIREMENTS:
+${funder_requirements}
+
+PROPOSAL CONTENT:
+${proposal_content}
+
+Produce a compliance audit report with:
+1. **Compliance Score** (0-100) and pass/fail verdict
+2. **Required Elements Checklist** - one row per requirement: present, partial, missing
+3. **Critical Issues** - items that would cause rejection
+4. **Minor Issues** - items that weaken the proposal but aren't disqualifying
+5. **Format & Submission Compliance** - page limits, font, attachments, etc.
+6. **Specific Fix Recommendations** - actionable rewrite/inclusion guidance per issue
+7. **Final Disposition** - submit as-is, revise then submit, or major rework needed
+
+Use markdown with tables where helpful.`;
+
+    const data = await callOpenRouter(prompt, 3500);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'compliance-checker',
+      title: 'Proposal Compliance Audit',
+      content,
+      inputData: { proposal_content_length: proposal_content.length },
+      metadata: {},
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      audit: content,
+      model: data.model,
+      usage: data.usage,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI compliance checker error:', error);
+    res.status(500).json({ error: error.message || 'Failed to run compliance check' });
+  }
+});
+
+// Proposal impact simulator: project social impact from project description
+app.post('/api/ai/impact-simulator', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { project_description, organization_id, target_population, budget_amount, duration_months } = req.body;
+
+    if (!project_description) {
+      return res.status(400).json({ error: 'project_description is required' });
+    }
+
+    let organization = null;
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+    }
+
+    const prompt = `You are a social impact analyst. Simulate projected social impact for the project below.
+
+PROJECT DESCRIPTION:
+${project_description}
+
+${organization ? `ORGANIZATION:\n- Name: ${organization.name}\n- Mission: ${organization.mission || 'N/A'}` : ''}
+${target_population ? `TARGET POPULATION: ${target_population}` : ''}
+${budget_amount ? `BUDGET: $${budget_amount}` : ''}
+${duration_months ? `DURATION: ${duration_months} months` : ''}
+
+Provide a structured impact simulation with:
+1. **Direct Beneficiaries** - estimated counts and demographics
+2. **Indirect Beneficiaries** - second-order reach
+3. **Outcome Projections** - 6 / 12 / 24 month milestones (best, expected, worst case)
+4. **Quantitative Indicators** - measurable KPIs with baseline + target
+5. **Qualitative Outcomes** - narrative impact statements
+6. **Cost-per-Outcome** - efficiency metrics
+7. **Risk Factors** - what could reduce the projected impact
+8. **Sensitivity Notes** - which assumptions most affect projections
+
+Use markdown tables where appropriate.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'impact-simulator',
+      title: `Impact Simulation${organization ? `: ${organization.name}` : ''}`,
+      content,
+      inputData: { project_description, organization_id, target_population, budget_amount, duration_months },
+      metadata: { organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      simulation: content,
+      model: data.model,
+      usage: data.usage,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI impact simulator error:', error);
+    res.status(500).json({ error: error.message || 'Failed to simulate impact' });
+  }
+});
+
+// Audit prep: generate quarterly/annual reporting outline for an existing proposal/grant
+app.post('/api/ai/audit-prep', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { reporting_period, grant_id, organization_id, achievements_summary } = req.body;
+
+    if (!reporting_period) {
+      return res.status(400).json({ error: 'reporting_period is required (e.g., "Q1 2026" or "Annual 2025")' });
+    }
+
+    let grant = null;
+    if (grant_id) {
+      const grantResult = await pool.query('SELECT * FROM grants WHERE id = $1', [grant_id]);
+      if (grantResult.rows.length > 0) grant = grantResult.rows[0];
+    }
+    let organization = null;
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+    }
+
+    const prompt = `You are a grant compliance & reporting specialist. Produce a comprehensive audit-prep / reporting outline for the period below.
+
+REPORTING PERIOD: ${reporting_period}
+${grant ? `GRANT:\n- Title: ${grant.title}\n- Funder: ${grant.funder_name}\n- Requirements: ${grant.requirements || 'N/A'}` : ''}
+${organization ? `ORGANIZATION:\n- Name: ${organization.name}\n- Mission: ${organization.mission || 'N/A'}` : ''}
+${achievements_summary ? `ACHIEVEMENTS DURING PERIOD:\n${achievements_summary}` : ''}
+
+Produce a complete reporting/audit-prep package outline:
+1. **Executive Summary Template** - what to include
+2. **Financial Reporting** - line items required, supporting docs to gather
+3. **Programmatic Outcomes** - metrics to compile, evidence types, narrative prompts
+4. **Compliance Attestations** - certifications/signatures expected
+5. **Document Checklist** - source documents to collect (receipts, timesheets, etc.)
+6. **Variance Explanations** - common variance categories and how to narrate them
+7. **Audit-Ready Trail** - filing/labelling guidance
+8. **Submission Timeline** - working back from typical funder due dates
+
+Use markdown headings and checklists.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'audit-prep',
+      title: `Audit Prep: ${reporting_period}`,
+      content,
+      inputData: { reporting_period, grant_id, organization_id, achievements_summary },
+      metadata: { grant: grant?.title, organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      report: content,
+      model: data.model,
+      usage: data.usage,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI audit prep error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate audit prep' });
+  }
+});
+
+// Funder relationship management: generate follow-up & cultivation plan
+app.post('/api/ai/funder-relationship', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { funder_name, organization_id, last_interaction_summary, relationship_stage } = req.body;
+
+    if (!funder_name) {
+      return res.status(400).json({ error: 'funder_name is required' });
+    }
+
+    let organization = null;
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+    }
+
+    const prompt = `You are a major-gifts / funder relations advisor. Build a stewardship and follow-up plan for the funder relationship below.
+
+FUNDER: ${funder_name}
+${organization ? `ORGANIZATION:\n- Name: ${organization.name}\n- Mission: ${organization.mission || 'N/A'}` : ''}
+${relationship_stage ? `RELATIONSHIP STAGE: ${relationship_stage} (e.g., new, cultivating, active, lapsed)` : ''}
+${last_interaction_summary ? `LAST INTERACTION:\n${last_interaction_summary}` : ''}
+
+Produce a concrete cultivation plan:
+1. **Relationship Diagnosis** - where the relationship stands and key risks
+2. **Recommended Next Touchpoint** - what, when, channel, and why
+3. **30 / 60 / 90 Day Plan** - sequenced actions
+4. **Talking Points** - personalized messaging hooks
+5. **Content to Share** - assets/news that build credibility
+6. **Stewardship Cadence** - frequency and format of ongoing communications
+7. **Red Flags** - signs the relationship is cooling and how to respond
+8. **Internal Owner Notes** - what your team should track in CRM
+
+Use markdown.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'funder-relationship',
+      title: `Funder Plan: ${funder_name}`,
+      content,
+      inputData: { funder_name, organization_id, last_interaction_summary, relationship_stage },
+      metadata: { funder: funder_name, organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({
+      plan: content,
+      model: data.model,
+      usage: data.usage,
+      savedId
+    });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') {
+      return res.status(503).json({ error: error.message });
+    }
+    console.error('AI funder relationship error:', error);
+    res.status(500).json({ error: error.message || 'Failed to build funder plan' });
+  }
+});
+
+// ---------- Apply pass 5 backlog: 3 new mechanical AI endpoints ---------- //
+
+// Peer proposal analyzer — extracts winning patterns from peer/competitor proposals.
+app.post('/api/ai/peer-proposal-analyzer', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { peer_proposals, our_focus_area, funder_name } = req.body;
+    if (!peer_proposals || (Array.isArray(peer_proposals) ? peer_proposals.length === 0 : !peer_proposals.trim())) {
+      return res.status(400).json({ error: 'peer_proposals (text or array of {title, content}) is required' });
+    }
+    const peerText = Array.isArray(peer_proposals)
+      ? peer_proposals.map((p, i) => `### Proposal ${i + 1}: ${p.title || 'Untitled'}\n${p.content || p}`).join('\n\n')
+      : peer_proposals;
+
+    const prompt = `You are a grants analyst studying winning peer proposals. Extract success patterns and recommendations.
+
+PEER PROPOSALS:
+${peerText}
+
+${funder_name ? `FUNDER: ${funder_name}` : ''}
+${our_focus_area ? `OUR FOCUS AREA: ${our_focus_area}` : ''}
+
+Produce a structured analysis (markdown):
+1. **Common Themes** — recurring narrative themes / problem framings
+2. **Winning Language Patterns** — phrasing, tone, voice patterns
+3. **Structural Patterns** — section ordering, lengths, evidence types
+4. **Evidence & Data Strategies** — types of metrics, citations, social proof
+5. **Differentiation Opportunities** — gaps we could fill or angles peers missed
+6. **Recommended Adaptations for Our Proposal** — concrete, actionable changes
+7. **Risks of Imitation** — what NOT to copy
+
+Note any limitations of the source materials.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'peer-proposal-analyzer',
+      title: `Peer Analysis${funder_name ? ` — ${funder_name}` : ''}`,
+      content,
+      inputData: { our_focus_area, funder_name, count: Array.isArray(peer_proposals) ? peer_proposals.length : 1 },
+      metadata: { funder: funder_name },
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({ analysis: content, model: data.model, usage: data.usage, savedId });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') return res.status(503).json({ error: error.message });
+    console.error('AI peer-proposal-analyzer error:', error);
+    res.status(500).json({ error: error.message || 'Failed to analyze peer proposals' });
+  }
+});
+
+// Multi-funder strategy planner — recommends portfolio mix to diversify funding.
+app.post('/api/ai/multi-funder-strategy', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { organization_id, target_annual_budget, constraints, time_horizon_months } = req.body;
+    let organization = null;
+    let pastFunders = [];
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+      try {
+        const fundersResult = await pool.query(
+          'SELECT name, type, focus_areas FROM funders WHERE organization_id = $1 LIMIT 30',
+          [organization_id]
+        );
+        pastFunders = fundersResult.rows || [];
+      } catch (e) { /* table may not be scoped that way */ }
+    }
+
+    const prompt = `You are a development strategy consultant. Build a multi-funder portfolio strategy.
+
+${organization ? `ORGANIZATION:\n- Name: ${organization.name}\n- Mission: ${organization.mission || 'N/A'}\n- Focus: ${organization.focus_areas || 'N/A'}` : ''}
+${target_annual_budget ? `TARGET ANNUAL BUDGET: $${target_annual_budget}` : ''}
+${time_horizon_months ? `TIME HORIZON: ${time_horizon_months} months` : 'TIME HORIZON: 24 months'}
+${pastFunders.length ? `PAST/CURRENT FUNDERS:\n${pastFunders.map(f => `- ${f.name} (${f.type || 'unknown'})`).join('\n')}` : ''}
+${constraints ? `CONSTRAINTS: ${constraints}` : ''}
+
+Recommend a diversified portfolio strategy (markdown):
+1. **Portfolio Mix Recommendation** — table of categories (federal, foundation, corporate, individual, earned-income), target % and dollar amounts
+2. **Top Prospect Categories** — 5-8 funder archetypes to pursue, why
+3. **Sequencing & Timing** — what to pursue first, dependencies, application calendars
+4. **Capacity Needs** — staff, volunteer, board roles to support pipeline
+5. **Risk Diversification** — concentration risk and mitigation
+6. **Quick-Wins vs Long-Plays** — which prospects are nearest-term vs strategic
+7. **Tracking KPIs** — pipeline metrics to measure portfolio health
+
+Be specific, numeric, and grounded in the org's profile.`;
+
+    const data = await callOpenRouter(prompt, 3500);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'multi-funder-strategy',
+      title: `Portfolio Strategy${organization ? ` — ${organization.name}` : ''}`,
+      content,
+      inputData: { organization_id, target_annual_budget, constraints, time_horizon_months },
+      metadata: { organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({ strategy: content, model: data.model, usage: data.usage, savedId });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') return res.status(503).json({ error: error.message });
+    console.error('AI multi-funder-strategy error:', error);
+    res.status(500).json({ error: error.message || 'Failed to build portfolio strategy' });
+  }
+});
+
+// Agentic funder discovery — generates a discovery report from search context.
+app.post('/api/ai/funder-discovery', authenticateToken, aiLimiter, async (req, res) => {
+  try {
+    const { organization_id, focus_areas, geography, project_type, exclusions } = req.body;
+    if (!focus_areas && !organization_id) {
+      return res.status(400).json({ error: 'focus_areas or organization_id is required' });
+    }
+    let organization = null;
+    if (organization_id) {
+      const orgResult = await pool.query('SELECT * FROM organizations WHERE id = $1', [organization_id]);
+      if (orgResult.rows.length > 0) organization = orgResult.rows[0];
+    }
+
+    const prompt = `You are a prospect-research analyst. Produce a structured funder discovery report. NOTE: Do NOT fabricate specific funder names or grant amounts. When you suggest a foundation/corporate/government source, label it as a CATEGORY/ARCHETYPE (e.g., "Mid-size community foundations in the Northeast focused on youth development") rather than fabricated specific names. Encourage the user to verify any names via foundation directories.
+
+${organization ? `ORGANIZATION:\n- Name: ${organization.name}\n- Mission: ${organization.mission || 'N/A'}` : ''}
+FOCUS AREAS: ${focus_areas || (organization?.focus_areas) || 'N/A'}
+${geography ? `GEOGRAPHY: ${geography}` : ''}
+${project_type ? `PROJECT TYPE: ${project_type}` : ''}
+${exclusions ? `EXCLUSIONS: ${exclusions}` : ''}
+
+Produce (markdown):
+1. **Funder Archetypes To Research** — 8-12 archetypes (foundation type, corporate giving, government program, family foundations, etc.) with rationale
+2. **Search Strategies & Sources** — directories (Foundation Center / Candid, Grants.gov, Instrumentl, GuideStar, agency RFP boards) and specific search queries
+3. **Eligibility Filters** — common requirements to pre-screen
+4. **Outreach Approach** — by archetype, the typical entry path (LOI, grant.gov submission, relationship-first)
+5. **Red Flags / Time-Sinks** — archetypes likely to be poor fit
+6. **Next Actions** — 5 concrete next-week tasks to begin discovery
+
+Be precise about the difference between archetype and named funder.`;
+
+    const data = await callOpenRouter(prompt, 3000);
+    const content = data.choices[0]?.message?.content || 'No content generated';
+
+    const savedId = await saveAiResult({
+      userId: req.user.id,
+      toolType: 'funder-discovery',
+      title: `Funder Discovery${organization ? ` — ${organization.name}` : ''}`,
+      content,
+      inputData: { organization_id, focus_areas, geography, project_type, exclusions },
+      metadata: { organization: organization?.name },
+      organizationId: organization_id,
+      model: data.model,
+      tokensUsed: data.usage?.total_tokens
+    });
+
+    res.json({ report: content, model: data.model, usage: data.usage, savedId });
+  } catch (error) {
+    if (error.code === 'NO_AI_KEY') return res.status(503).json({ error: error.message });
+    console.error('AI funder-discovery error:', error);
+    res.status(500).json({ error: error.message || 'Failed to build discovery report' });
+  }
+});
+
 // ==================== ERROR HANDLING ====================
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
+
+app.use('/api/funder-crm', require('./routes/funderRelationshipCRM'));
+app.use('/api/multi-funder-strategy', require('./routes/multiFunderStrategyPlanner'));
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -2239,6 +3009,16 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
+
+app.use('/api/gap-no-real-time-funder-deadline-change', route_gap_no_real_time_funder_deadline_change);
+app.use('/api/gap-no-proposal-style-consistency-enforcer-a', route_gap_no_proposal_style_consistency_enforcer_a);
+app.use('/api/gap-no-rejection-reason-classifier-for-past', route_gap_no_rejection_reason_classifier_for_past);
+app.use('/api/gap-backend-is-monolithic-no-routes-folder', route_gap_backend_is_monolithic_no_routes_folder);
+app.use('/api/gap-no-webhook-receivers-for-grant-portal', route_gap_no_webhook_receivers_for_grant_portal);
+app.use('/api/gap-no-real-time-collaboration-on-proposals', route_gap_no_real_time_collaboration_on_proposals);
+app.use('/api/gap-no-file-upload-pipeline-for-supporting', route_gap_no_file_upload_pipeline_for_supporting);
+app.use('/api/gap-no-e-signature-integration-for-proposal', route_gap_no_e_signature_integration_for_proposal);
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

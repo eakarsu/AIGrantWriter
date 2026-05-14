@@ -362,6 +362,14 @@ Target population: adults 18-55 from communities disproportionately affected by 
     }
   };
 
+  // Helper: get human-readable error message, handling 429 rate limit specifically
+  const getErrorMessage = (error) => {
+    if (error.response?.status === 429) {
+      return 'Rate limit reached: Too many AI requests. Please wait a few minutes and try again.';
+    }
+    return error.response?.data?.error || error.message || 'An unexpected error occurred';
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -417,7 +425,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Proposal generated and saved to drafts!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to generate proposal';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Generation Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -442,7 +450,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Text improved and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to improve text';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -467,7 +475,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Summary generated and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to generate summary';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -492,7 +500,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Analysis complete and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to match grants';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -517,7 +525,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Review complete and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to review proposal';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -542,7 +550,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Budget generated and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to generate budget';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -567,7 +575,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Impact framework generated and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to measure impact';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -588,7 +596,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Deadline analysis complete and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to analyze deadlines';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
@@ -613,7 +621,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
       });
       toast.success('Funder research complete and saved!');
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to research funder';
+      const errorMsg = getErrorMessage(error);
       setAiResult({ type: 'error', title: 'Error', content: errorMsg });
       toast.error(errorMsg);
     } finally {
