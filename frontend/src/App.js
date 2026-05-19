@@ -20,11 +20,30 @@ import ImpactMetrics from './pages/ImpactMetrics';
 import Deadlines from './pages/Deadlines';
 import Funders from './pages/Funders';
 import AIHistory from './pages/AIHistory';
+import AdvancedAITools from './pages/AdvancedAITools';
+import AIPortfolioTools from './pages/AIPortfolioTools';
 
 // Components
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
+
+// === Batch 04 Gaps & Frontend Mounts ===
+import CfAgenticFunderDiscoveryScanningFounda from './pages/CfAgenticFunderDiscoveryScanningFounda';
+import CfProposalImpactSimulatorModelingLives from './pages/CfProposalImpactSimulatorModelingLives';
+import CfPeerProposalAnalyzerExtractingSucces from './pages/CfPeerProposalAnalyzerExtractingSucces';
+import CfMultiFunderStrategyPlannerDiversifyi from './pages/CfMultiFunderStrategyPlannerDiversifyi';
+import CfComplianceAuditPrepCoPilotGeneratin from './pages/CfComplianceAuditPrepCoPilotGeneratin';
+import CfFunderRelationshipCrmWithAiRecommen from './pages/CfFunderRelationshipCrmWithAiRecommen';
+import GapNoRealTimeFunderDeadlineChange from './pages/GapNoRealTimeFunderDeadlineChange';
+import GapNoProposalStyleConsistencyEnforcerA from './pages/GapNoProposalStyleConsistencyEnforcerA';
+import GapNoRejectionReasonClassifierForPast from './pages/GapNoRejectionReasonClassifierForPast';
+import GapBackendIsMonolithicNoRoutesFolder from './pages/GapBackendIsMonolithicNoRoutesFolder';
+import GapNoWebhookReceiversForGrantPortal from './pages/GapNoWebhookReceiversForGrantPortal';
+import GapNoRealTimeCollaborationOnProposals from './pages/GapNoRealTimeCollaborationOnProposals';
+import GapNoFileUploadPipelineForSupporting from './pages/GapNoFileUploadPipelineForSupporting';
+import GapNoESignatureIntegrationForProposal from './pages/GapNoESignatureIntegrationForProposal';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 // Create Auth Context
 const AuthContext = createContext(null);
@@ -32,7 +51,7 @@ const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 // API Configuration
-const API_URL = 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3501/api';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -136,7 +155,26 @@ function App() {
             <Route path="/deadlines" element={<ProtectedRoute><Deadlines /></ProtectedRoute>} />
             <Route path="/funders" element={<ProtectedRoute><Funders /></ProtectedRoute>} />
             <Route path="/ai-history" element={<ProtectedRoute><AIHistory /></ProtectedRoute>} />
+            <Route path="/advanced-ai" element={<ProtectedRoute><AdvancedAITools /></ProtectedRoute>} />
+            <Route path="/ai-portfolio" element={<ProtectedRoute><AIPortfolioTools /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          {/* // === Batch 04 Gaps & Frontend Mounts === */}
+          <Route path="/cf-agentic-funder-discovery-scanning-founda" element={<CfAgenticFunderDiscoveryScanningFounda />} />
+          <Route path="/cf-proposal-impact-simulator-modeling-lives" element={<CfProposalImpactSimulatorModelingLives />} />
+          <Route path="/cf-peer-proposal-analyzer-extracting-succes" element={<CfPeerProposalAnalyzerExtractingSucces />} />
+          <Route path="/cf-multi-funder-strategy-planner-diversifyi" element={<CfMultiFunderStrategyPlannerDiversifyi />} />
+          <Route path="/cf-compliance-audit-prep-co-pilot-generatin" element={<CfComplianceAuditPrepCoPilotGeneratin />} />
+          <Route path="/cf-funder-relationship-crm-with-ai-recommen" element={<CfFunderRelationshipCrmWithAiRecommen />} />
+          <Route path="/gap-no-real-time-funder-deadline-change" element={<GapNoRealTimeFunderDeadlineChange />} />
+          <Route path="/gap-no-proposal-style-consistency-enforcer-a" element={<GapNoProposalStyleConsistencyEnforcerA />} />
+          <Route path="/gap-no-rejection-reason-classifier-for-past" element={<GapNoRejectionReasonClassifierForPast />} />
+          <Route path="/gap-backend-is-monolithic-no-routes-folder" element={<GapBackendIsMonolithicNoRoutesFolder />} />
+          <Route path="/gap-no-webhook-receivers-for-grant-portal" element={<GapNoWebhookReceiversForGrantPortal />} />
+          <Route path="/gap-no-real-time-collaboration-on-proposals" element={<GapNoRealTimeCollaborationOnProposals />} />
+          <Route path="/gap-no-file-upload-pipeline-for-supporting" element={<GapNoFileUploadPipelineForSupporting />} />
+          <Route path="/gap-no-e-signature-integration-for-proposal" element={<GapNoESignatureIntegrationForProposal />} />
+          <Route path="/custom-views" element={<ProtectedRoute><CustomViewsPage /></ProtectedRoute>} />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
