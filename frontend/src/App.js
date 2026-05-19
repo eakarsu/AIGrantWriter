@@ -43,6 +43,7 @@ import GapNoWebhookReceiversForGrantPortal from './pages/GapNoWebhookReceiversFo
 import GapNoRealTimeCollaborationOnProposals from './pages/GapNoRealTimeCollaborationOnProposals';
 import GapNoFileUploadPipelineForSupporting from './pages/GapNoFileUploadPipelineForSupporting';
 import GapNoESignatureIntegrationForProposal from './pages/GapNoESignatureIntegrationForProposal';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 // Create Auth Context
 const AuthContext = createContext(null);
@@ -50,7 +51,7 @@ const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
 
 // API Configuration
-const API_URL = 'http://localhost:3001/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3501/api';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -172,6 +173,7 @@ function App() {
           <Route path="/gap-no-real-time-collaboration-on-proposals" element={<GapNoRealTimeCollaborationOnProposals />} />
           <Route path="/gap-no-file-upload-pipeline-for-supporting" element={<GapNoFileUploadPipelineForSupporting />} />
           <Route path="/gap-no-e-signature-integration-for-proposal" element={<GapNoESignatureIntegrationForProposal />} />
+          <Route path="/custom-views" element={<ProtectedRoute><CustomViewsPage /></ProtectedRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

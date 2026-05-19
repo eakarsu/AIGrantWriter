@@ -4,7 +4,7 @@ import { useAuth } from '../App';
 import {
   FiHome, FiUsers, FiDollarSign, FiFileText,
   FiLayout, FiFolder, FiCpu, FiLogOut, FiMenu, FiX,
-  FiSettings, FiPieChart, FiCalendar, FiSearch, FiTarget, FiClock
+  FiSettings, FiPieChart, FiCalendar, FiSearch, FiTarget, FiClock, FiBarChart2
 } from 'react-icons/fi';
 import './Layout.css';
 
@@ -28,6 +28,7 @@ const Layout = ({ children }) => {
     { path: '/funders', icon: FiSearch, label: 'Funder Research' },
     { path: '/ai-history', icon: FiClock, label: 'AI History' },
     { path: '/advanced-ai', icon: FiCpu, label: 'Advanced AI' },
+    { path: '/custom-views', icon: FiBarChart2, label: 'Grant Views' },
     { divider: true, label: 'Settings' },
     { path: '/settings', icon: FiSettings, label: 'Settings' },
   ];

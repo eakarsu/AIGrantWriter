@@ -2994,6 +2994,10 @@ Be precise about the difference between archetype and named funder.`;
 
 // ==================== ERROR HANDLING ====================
 
+// Custom Views (4 features: success-rate, priority-heatmap, proposal PDF, rules editor)
+// MUST mount before the 404 handler below.
+app.use('/api/custom-views', require('./routes/customViews'));
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
