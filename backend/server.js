@@ -2997,6 +2997,7 @@ Be precise about the difference between archetype and named funder.`;
 // Custom Views (4 features: success-rate, priority-heatmap, proposal PDF, rules editor)
 // MUST mount before the 404 handler below.
 app.use('/api/custom-views', require('./routes/customViews'));
+app.use('/api/funder-fit-gap-analysis', authenticateToken, require('./routes/funderFitGapAnalysis'));
 
 // 404 handler
 app.use((req, res) => {

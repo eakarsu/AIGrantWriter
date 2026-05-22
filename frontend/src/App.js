@@ -22,6 +22,7 @@ import Funders from './pages/Funders';
 import AIHistory from './pages/AIHistory';
 import AdvancedAITools from './pages/AdvancedAITools';
 import AIPortfolioTools from './pages/AIPortfolioTools';
+import FunderFitGapAnalysis from './pages/FunderFitGapAnalysis';
 
 // Components
 import Layout from './components/Layout';
@@ -44,6 +45,11 @@ import GapNoRealTimeCollaborationOnProposals from './pages/GapNoRealTimeCollabor
 import GapNoFileUploadPipelineForSupporting from './pages/GapNoFileUploadPipelineForSupporting';
 import GapNoESignatureIntegrationForProposal from './pages/GapNoESignatureIntegrationForProposal';
 import CustomViewsPage from './pages/CustomViewsPage';
+
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
 
 // Create Auth Context
 const AuthContext = createContext(null);
@@ -139,6 +145,10 @@ function App() {
       <AuthContext.Provider value={{ user, login, logout }}>
         <ErrorBoundary>
           <Routes>
+        <Route path="/insights/timeline" element={<ProtectedRoute><TimelineView /></ProtectedRoute>} />
+        <Route path="/codex/custom-viz" element={<ProtectedRoute><CodexCustomVizFeature /></ProtectedRoute>} />
+        <Route path="/codex/operations" element={<ProtectedRoute><CodexOperationsFeature /></ProtectedRoute>} />
+
             <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
             <Route path="/register" element={user ? <Navigate to="/" replace /> : <Register />} />
             <Route path="/forgot-password" element={user ? <Navigate to="/" replace /> : <ForgotPassword />} />
@@ -157,6 +167,7 @@ function App() {
             <Route path="/ai-history" element={<ProtectedRoute><AIHistory /></ProtectedRoute>} />
             <Route path="/advanced-ai" element={<ProtectedRoute><AdvancedAITools /></ProtectedRoute>} />
             <Route path="/ai-portfolio" element={<ProtectedRoute><AIPortfolioTools /></ProtectedRoute>} />
+            <Route path="/funder-fit-gap-analysis" element={<ProtectedRoute><FunderFitGapAnalysis /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
           {/* // === Batch 04 Gaps & Frontend Mounts === */}
           <Route path="/cf-agentic-funder-discovery-scanning-founda" element={<CfAgenticFunderDiscoveryScanningFounda />} />
