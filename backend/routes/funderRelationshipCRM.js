@@ -8,7 +8,7 @@ const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'grant_writer'
 });
 
@@ -19,7 +19,8 @@ const authenticateToken = (req, res, next) => {
   const token = h && h.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'No token' });
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET || 'grant-writer-secret');
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) return res.status(503).json({ error: 'Authentication is not configured' });
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch { return res.status(403).json({ error: 'Invalid token' }); }
 };

@@ -1,4 +1,7 @@
 require('dotenv').config({ path: '../.env' });
+if (process.env.ALLOW_DEMO_SEED !== 'true' || process.env.NODE_ENV === 'production') {
+  throw new Error('Demo seed is quarantined; set ALLOW_DEMO_SEED=true outside production to run it explicitly');
+}
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 

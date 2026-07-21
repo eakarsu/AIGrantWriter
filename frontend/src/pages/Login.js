@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
-import { FiMail, FiLock, FiCpu, FiZap } from 'react-icons/fi';
+import { FiMail, FiLock, FiCpu } from 'react-icons/fi';
 import './Login.css';
 
 const Login = () => {
@@ -23,11 +23,6 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleAutoFill = () => {
-    setEmail('demo@grantwriter.com');
-    setPassword('password123');
   };
 
   return (
@@ -89,21 +84,7 @@ const Login = () => {
             </button>
           </form>
 
-          <div className="login-divider">
-            <span>or</span>
-          </div>
-
-          <button type="button" className="demo-btn" onClick={handleAutoFill}>
-            <FiZap />
-            Auto-fill Demo Credentials
-          </button>
-
           <div className="login-footer">
-            <p>Demo credentials will be filled automatically</p>
-            <p className="credentials">
-              <strong>Email:</strong> demo@grantwriter.com<br />
-              <strong>Password:</strong> password123
-            </p>
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
               <Link to="/register" style={{ color: '#4F46E5', textDecoration: 'none', fontWeight: 600 }}>Create account</Link>
               <Link to="/forgot-password" style={{ color: '#64748b', textDecoration: 'none' }}>Forgot password?</Link>

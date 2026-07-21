@@ -28,7 +28,7 @@ const pool = new Pool({
 });
 
 // Create proposal_versions table if needed
-pool.query(`
+if (process.env.AUTO_INIT_SCHEMA === 'true') pool.query(`
   CREATE TABLE IF NOT EXISTS proposal_versions (
     id SERIAL PRIMARY KEY,
     proposal_id INTEGER REFERENCES proposals(id) ON DELETE CASCADE,
@@ -2998,6 +2998,7 @@ Be precise about the difference between archetype and named funder.`;
 // MUST mount before the 404 handler below.
 app.use('/api/custom-views', require('./routes/customViews'));
 app.use('/api/funder-fit-gap-analysis', authenticateToken, require('./routes/funderFitGapAnalysis'));
+app.use('/api/governed-grant-lifecycle', require('./governance')({ pool, auth: authenticateToken }));
 
 // 404 handler
 app.use((req, res) => {

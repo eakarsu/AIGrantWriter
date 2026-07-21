@@ -12,7 +12,7 @@ const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
   user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'grantwriter'
 });
 
@@ -63,7 +63,8 @@ function authOptional(req, _res, next) {
   const h = req.headers.authorization;
   const token = h && h.split(' ')[1];
   if (token) {
-    try { req.user = jwt.verify(token, process.env.JWT_SECRET || 'your_super_secret_jwt_key_for_grant_writer_app_2024'); }
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) return res.status(503).json({ error: 'Authentication is not configured' });
+    try { req.user = jwt.verify(token, process.env.JWT_SECRET); }
     catch (_) { /* allow anon for read-only health */ }
   }
   next();

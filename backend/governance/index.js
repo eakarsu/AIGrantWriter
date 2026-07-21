@@ -1,0 +1,1 @@
+'use strict';const{createGovernedRouter}=require('./router');const{evaluate}=require('./domain');module.exports=({pool,auth})=>createGovernedRouter({pool,auth,evaluate,workflowType:'grant-lifecycle',providers:['crm','funder-portal','document-storage','accounting','calendar','email','research'],approverRoles:['authorized_signer','grants_manager','finance','admin']});

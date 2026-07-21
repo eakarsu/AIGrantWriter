@@ -1,0 +1,30 @@
+name: governed-workflow-controls
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-free-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Domain, contract, authorization, integration, migration, and lifecycle tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d backend ]]; then runtime=backend; host=server.js; else runtime=server; host=index.js; fi
+          node --test "$runtime"/governance/tests/*.test.js
+          node --check "$runtime/governance/domain.js"
+          node --check "$runtime/governance/policy.js"
+          node --check "$runtime/governance/router.js"
+          node --check "$runtime/$host"
+          bash -n start.sh
