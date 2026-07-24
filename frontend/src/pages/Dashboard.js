@@ -54,23 +54,35 @@ const Dashboard = () => {
         api.get('/deadlines'),
         api.get('/funders')
       ]);
+      const list = (response) => Array.isArray(response.data)
+        ? response.data
+        : (response.data?.items || response.data?.data || response.data?.rows || []);
+      const organizationRows = list(orgs);
+      const grantRows = list(grants);
+      const proposalRows = list(proposals);
+      const templateRows = list(templates);
+      const documentRows = list(documents);
+      const budgetRows = list(budgets);
+      const impactMetricRows = list(impactMetrics);
+      const deadlineRows = list(deadlines);
+      const funderRows = list(funders);
 
       setStats({
-        organizations: orgs.data.length,
-        grants: grants.data.length,
-        proposals: proposals.data.length,
-        templates: templates.data.length,
-        documents: documents.data.length,
-        budgets: budgets.data.length,
-        impactMetrics: impactMetrics.data.length,
-        deadlines: deadlines.data.length,
-        funders: funders.data.length
+        organizations: organizationRows.length,
+        grants: grantRows.length,
+        proposals: proposalRows.length,
+        templates: templateRows.length,
+        documents: documentRows.length,
+        budgets: budgetRows.length,
+        impactMetrics: impactMetricRows.length,
+        deadlines: deadlineRows.length,
+        funders: funderRows.length
       });
 
-      setRecentProposals(proposals.data.slice(0, 5));
+      setRecentProposals(proposalRows.slice(0, 5));
 
       // Calculate proposal status stats
-      const statusCounts = proposals.data.reduce((acc, p) => {
+      const statusCounts = proposalRows.reduce((acc, p) => {
         acc[p.status] = (acc[p.status] || 0) + 1;
         return acc;
       }, {});
@@ -83,14 +95,14 @@ const Dashboard = () => {
       });
 
       // Calculate funding totals
-      const totalRequested = proposals.data.reduce((sum, p) => sum + (Number(p.amount_requested) || 0), 0);
-      const totalApproved = proposals.data
+      const totalRequested = proposalRows.reduce((sum, p) => sum + (Number(p.amount_requested) || 0), 0);
+      const totalApproved = proposalRows
         .filter(p => p.status === 'approved')
         .reduce((sum, p) => sum + (Number(p.amount_requested) || 0), 0);
       setTotalFunding({ requested: totalRequested, approved: totalApproved });
 
       // Get upcoming deadlines from both deadlines table and grants
-      const allDeadlines = deadlines.data
+      const allDeadlines = deadlineRows
         .filter(d => new Date(d.due_date) > new Date() && d.status !== 'completed')
         .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
         .slice(0, 5);
