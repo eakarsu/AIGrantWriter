@@ -1528,6 +1528,7 @@ app.delete('/api/funders/:id', authenticateToken, async (req, res) => {
 
 // Helper function to call OpenRouter API
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
+const OPENROUTER_BASE_URL = (process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/$/, '');
 
 async function callOpenRouter(prompt, maxTokens = 3000) {
   if (!process.env.OPENROUTER_API_KEY) {
@@ -1535,7 +1536,7 @@ async function callOpenRouter(prompt, maxTokens = 3000) {
     err.code = 'NO_AI_KEY';
     throw err;
   }
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -1553,9 +1554,12 @@ async function callOpenRouter(prompt, maxTokens = 3000) {
 
   const data = await response.json();
 
-  if (data.error) {
-    throw new Error(data.error.message || 'AI request failed');
+  if (!response.ok || data.error) {
+    throw new Error(data.error?.message || `AI request failed with HTTP ${response.status}`);
   }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content || !String(content).trim()) throw new Error('OpenRouter returned empty content');
 
   return data;
 }

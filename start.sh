@@ -4,20 +4,20 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
 
-if [[ -d backend ]]; then
-  API_DIR=backend
-  UI_DIR=frontend
-  MIGRATION=backend/migrations/001_governed_workflows.sql
-else
-  API_DIR=server
-  UI_DIR=client
-  MIGRATION=server/migrations/001_governed_workflows.sql
-fi
+if [[ -d backend ]]; then API_DIR=backend; UI_DIR=frontend; else API_DIR=server; UI_DIR=client; fi
+
+load_env() {
+  [[ -f .env ]] || { echo "Create .env from .env.example; no defaults are generated." >&2; return 1; }
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+}
 
 check() {
   command -v node >/dev/null || { echo "node is required" >&2; return 1; }
   command -v npm >/dev/null || { echo "npm is required" >&2; return 1; }
-  [[ -f .env ]] || { echo "Create .env from .env.example; no defaults are generated." >&2; return 1; }
+  load_env
   grep -Eq '^JWT_SECRET=.{32,}$' .env ||
     { echo "JWT_SECRET must be set to at least 32 characters." >&2; return 1; }
   if ! grep -Eq '^DATABASE_URL=.+|^DB_HOST=.+' .env; then
@@ -31,13 +31,19 @@ check() {
   echo "Configuration shape is valid. External connectivity and credentials were not verified."
 }
 
-migrate() {
-  check
+migrate_files() {
   [[ "${ALLOW_SCHEMA_MIGRATION:-false}" == "true" ]] ||
     { echo "Set ALLOW_SCHEMA_MIGRATION=true for this explicit operation." >&2; return 1; }
-  : "${DATABASE_URL:?Export DATABASE_URL for the migration process.}"
+  : "${DATABASE_URL:?Set DATABASE_URL in .env for the migration process.}"
   command -v psql >/dev/null || { echo "psql is required" >&2; return 1; }
-  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$MIGRATION"
+  for migration in "$API_DIR"/migrations/*.sql; do
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+  done
+}
+
+migrate() {
+  check
+  migrate_files
 }
 
 start_services() {
@@ -45,12 +51,27 @@ start_services() {
   [[ -d "$API_DIR/node_modules" && -d "$UI_DIR/node_modules" ]] ||
     { echo "Dependencies are absent. Run locked installs explicitly before startup." >&2; return 1; }
 
-  npm --prefix "$API_DIR" start &
+  api_port="${BACKEND_PORT:-${PORT:-3001}}"
+  ui_port="${FRONTEND_PORT:-${CLIENT_PORT:-3000}}"
+  [[ "$api_port" != "$ui_port" ]] || { echo "Backend and frontend ports must be different." >&2; return 1; }
+  for assigned_port in "$api_port" "$ui_port"; do
+    if command -v lsof >/dev/null 2>&1 && lsof -tiTCP:"$assigned_port" -sTCP:LISTEN >/dev/null 2>&1; then
+      echo "Port $assigned_port is already in use." >&2
+      return 1
+    fi
+  done
+
+  if [[ "${ALLOW_SCHEMA_MIGRATION:-false}" == "true" ]]; then
+    migrate_files
+    node "$API_DIR/create-admin.js"
+  fi
+
+  PORT="$api_port" BACKEND_PORT="$api_port" npm --prefix "$API_DIR" start &
   api_pid=$!
   if node -e "const p=require('./$UI_DIR/package.json');process.exit(p.scripts&&p.scripts.dev?0:1)"; then
-    npm --prefix "$UI_DIR" run dev &
+    PORT="$ui_port" BACKEND_PORT="$api_port" npm --prefix "$UI_DIR" run dev -- --host "${HOST:-127.0.0.1}" --port "$ui_port" --strictPort &
   else
-    BROWSER=none npm --prefix "$UI_DIR" start &
+    BROWSER=none HOST="${HOST:-127.0.0.1}" PORT="$ui_port" REACT_APP_API_ORIGIN="http://127.0.0.1:$api_port" REACT_APP_API_URL="http://127.0.0.1:$api_port/api" npm --prefix "$UI_DIR" start &
   fi
   ui_pid=$!
 
@@ -62,7 +83,7 @@ start_services() {
   wait "$api_pid" "$ui_pid"
 }
 
-case "${1:-check}" in
+case "${1:-start}" in
   check) check ;;
   migrate) migrate ;;
   start) start_services ;;
