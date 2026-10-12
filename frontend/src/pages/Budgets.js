@@ -1,3 +1,5 @@
+import FullAIExamples, { useFullAIExamples } from '../components/FullAIExamples.jsx';
+import AIReport from '../components/AIReport';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../App';
 import { useToast } from '../components/Toast';
@@ -7,7 +9,6 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import SortControl from '../components/SortControl';
 import { exportToPdf } from '../utils/exportPdf';
-import ReactMarkdown from 'react-markdown';
 import {
   FiPlus, FiEdit2, FiTrash2, FiX, FiPieChart,
   FiDollarSign, FiCpu, FiRefreshCw, FiCopy, FiDownload, FiCheck, FiFileText
@@ -15,6 +16,7 @@ import {
 import './DataPage.css';
 
 const Budgets = () => {
+  const fullAIExamples = useFullAIExamples();
   const toast = useToast();
   const [budgets, setBudgets] = useState([]);
   const [organizations, setOrganizations] = useState([]);
@@ -26,7 +28,7 @@ const Budgets = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('DESC');
@@ -67,8 +69,8 @@ const Budgets = () => {
       const response = await api.get('/budgets', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setBudgets(response.data.data || response.data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setBudgets(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch budgets');
     } finally {
@@ -82,8 +84,8 @@ const Budgets = () => {
         api.get('/organizations', { params: { limit: 100 } }),
         api.get('/proposals', { params: { limit: 100 } })
       ]);
-      setOrganizations(orgsRes.data.data || orgsRes.data);
-      setProposals(proposalsRes.data.data || proposalsRes.data);
+      setOrganizations(Array.isArray(orgsRes.data.data) ? orgsRes.data.data : []);
+      setProposals(Array.isArray(proposalsRes.data.data) ? proposalsRes.data.data : []);
     } catch (error) {
       // silently fail for dropdowns
     }
@@ -566,7 +568,7 @@ const Budgets = () => {
       {/* AI Generate Modal */}
       {showAIModal && (
         <div className="modal-overlay" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()} data-full-ai-workspace="Budgets"><FullAIExamples controller={fullAIExamples} disabled={Boolean(aiLoading)} />
             <div className="modal-header">
               <h2><FiCpu /> AI Budget Generator</h2>
               <button className="modal-close" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
@@ -584,7 +586,7 @@ const Budgets = () => {
                 <label>Project Description *</label>
                 <textarea
                   value={aiForm.project_description}
-                  onChange={(e) => setAiForm({ ...aiForm, project_description: e.target.value })}
+                  onChange={(e) => setAiForm({ ...aiForm, project_description: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.project_description, change: e => setAiForm(previous => ({ ...previous, project_description: e.target.value })), label: "aiForm.project_description", sample: '' }, "Budgets.project_description")}
                   rows="4"
                   placeholder="Describe your project, activities, and goals..."
                 />
@@ -595,7 +597,7 @@ const Budgets = () => {
                   <input
                     type="number"
                     value={aiForm.total_amount}
-                    onChange={(e) => setAiForm({ ...aiForm, total_amount: e.target.value })}
+                    onChange={(e) => setAiForm({ ...aiForm, total_amount: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.total_amount, change: e => setAiForm(previous => ({ ...previous, total_amount: e.target.value })), label: "aiForm.total_amount", sample: '' }, "Budgets.total_amount")}
                     placeholder="e.g., 100000"
                   />
                 </div>
@@ -604,7 +606,7 @@ const Budgets = () => {
                   <input
                     type="text"
                     value={aiForm.categories}
-                    onChange={(e) => setAiForm({ ...aiForm, categories: e.target.value })}
+                    onChange={(e) => setAiForm({ ...aiForm, categories: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.categories, change: e => setAiForm(previous => ({ ...previous, categories: e.target.value })), label: "aiForm.categories", sample: '' }, "Budgets.categories")}
                     placeholder="e.g., Personnel, Equipment, Travel"
                   />
                 </div>
@@ -630,7 +632,7 @@ const Budgets = () => {
                   </div>
                 </div>
                 <div className="ai-output-content markdown-content">
-                  <ReactMarkdown>{aiResult.budget}</ReactMarkdown>
+                  <AIReport response={aiResult.budget} title="Budgets AI result" />
                 </div>
                 <div className="ai-meta">
                   <span>Model: {aiResult.model}</span>

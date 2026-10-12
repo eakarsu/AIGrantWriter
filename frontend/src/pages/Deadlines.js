@@ -1,3 +1,5 @@
+
+import FullAIExamples, { useFullAIExamples } from "../components/FullAIExamples.jsx";
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../App';
 import { useToast } from '../components/Toast';
@@ -7,7 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import SortControl from '../components/SortControl';
 import { exportToPdf } from '../utils/exportPdf';
-import ReactMarkdown from 'react-markdown';
+import AIReport from '../components/AIReport';
 import {
   FiPlus, FiEdit2, FiTrash2, FiX, FiCalendar,
   FiCpu, FiRefreshCw, FiCopy, FiDownload, FiClock,
@@ -16,6 +18,8 @@ import {
 import './DataPage.css';
 
 const Deadlines = () => {
+  const fullAIExamples = useFullAIExamples();
+
   const toast = useToast();
   const [deadlines, setDeadlines] = useState([]);
   const [allDeadlines, setAllDeadlines] = useState([]);
@@ -28,7 +32,7 @@ const Deadlines = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('due_date');
   const [sortOrder, setSortOrder] = useState('ASC');
@@ -68,8 +72,8 @@ const Deadlines = () => {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
       const data = response.data.data || response.data;
-      setDeadlines(data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setDeadlines(Array.isArray(data) ? data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch deadlines');
     } finally {
@@ -84,9 +88,9 @@ const Deadlines = () => {
         api.get('/organizations', { params: { limit: 100 } }),
         api.get('/deadlines', { params: { limit: 100 } })
       ]);
-      setGrants(grantsRes.data.data || grantsRes.data);
-      setOrganizations(orgsRes.data.data || orgsRes.data);
-      setAllDeadlines(allDlRes.data.data || allDlRes.data);
+      setGrants(Array.isArray(grantsRes.data.data) ? grantsRes.data.data : []);
+      setOrganizations(Array.isArray(orgsRes.data.data) ? orgsRes.data.data : []);
+      setAllDeadlines(Array.isArray(allDlRes.data.data) ? allDlRes.data.data : []);
     } catch (error) {
       // silently fail
     }
@@ -636,7 +640,7 @@ const Deadlines = () => {
       {/* AI Analyze Modal */}
       {showAIModal && (
         <div className="modal-overlay" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()} data-full-ai-workspace="Deadlines"><FullAIExamples controller={fullAIExamples} disabled={Boolean(loading || aiLoading)} />
             <div className="modal-header">
               <h2><FiCpu /> AI Deadline Analyzer</h2>
               <button className="modal-close" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
@@ -650,7 +654,7 @@ const Deadlines = () => {
               </div>
               <div className="form-group">
                 <label>Organization (Optional)</label>
-                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })}>
+                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.organization_id, change: (e) => setAiForm({ ...aiForm, organization_id: e.target.value }), label: "aiForm.organization_id", manual: false, json: false, sample: '' }, "p1-26386", undefined)}>
                   <option value="">All Organizations</option>
                   {organizations.map(org => (
                     <option key={org.id} value={org.id}>{org.name}</option>
@@ -679,7 +683,7 @@ const Deadlines = () => {
                   </div>
                 </div>
                 <div className="ai-output-content markdown-content">
-                  <ReactMarkdown>{aiResult.deadline_analysis}</ReactMarkdown>
+                  <AIReport response={aiResult.deadline_analysis} title="Deadline analysis" />
                 </div>
                 <div className="ai-meta">
                   <span>Deadlines Analyzed: {aiResult.deadlines_analyzed}</span>

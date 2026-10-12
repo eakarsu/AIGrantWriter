@@ -23,7 +23,7 @@ const Grants = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('deadline');
   const [sortOrder, setSortOrder] = useState('ASC');
@@ -49,8 +49,8 @@ const Grants = () => {
       const response = await api.get('/grants', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setGrants(response.data.data);
-      setTotalItems(response.data.total);
+      setGrants(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch grants');
     } finally {

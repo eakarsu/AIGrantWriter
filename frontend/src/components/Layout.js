@@ -1,3 +1,4 @@
+import AIReportLibrary from "./AIReportLibrary";
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
@@ -87,7 +88,7 @@ const Layout = ({ children }) => {
             {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
-      </aside>
+      <AIReportLibrary /></aside>
 
       <main className={`main-content ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
         {children}

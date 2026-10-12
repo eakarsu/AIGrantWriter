@@ -1,3 +1,5 @@
+import FullAIExamples, { useFullAIExamples } from '../components/FullAIExamples.jsx';
+import AIReport from '../components/AIReport';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../App';
 import { useToast } from '../components/Toast';
@@ -7,7 +9,6 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import SortControl from '../components/SortControl';
 import { exportToPdf } from '../utils/exportPdf';
-import ReactMarkdown from 'react-markdown';
 import {
   FiPlus, FiEdit2, FiTrash2, FiX, FiSearch,
   FiCpu, FiRefreshCw, FiCopy, FiDownload, FiGlobe,
@@ -16,6 +17,7 @@ import {
 import './DataPage.css';
 
 const Funders = () => {
+  const fullAIExamples = useFullAIExamples();
   const toast = useToast();
   const [funders, setFunders] = useState([]);
   const [organizations, setOrganizations] = useState([]);
@@ -26,7 +28,7 @@ const Funders = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('name');
   const [sortOrder, setSortOrder] = useState('ASC');
@@ -72,8 +74,8 @@ const Funders = () => {
       const response = await api.get('/funders', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setFunders(response.data.data || response.data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setFunders(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch funders');
     } finally {
@@ -84,7 +86,7 @@ const Funders = () => {
   const fetchOrganizations = useCallback(async () => {
     try {
       const res = await api.get('/organizations', { params: { limit: 100 } });
-      setOrganizations(res.data.data || res.data);
+      setOrganizations(Array.isArray(res.data.data) ? res.data.data : []);
     } catch (error) {
       // silently fail
     }
@@ -605,7 +607,7 @@ const Funders = () => {
       {/* AI Research Modal */}
       {showAIModal && (
         <div className="modal-overlay" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()} data-full-ai-workspace="Funders"><FullAIExamples controller={fullAIExamples} disabled={Boolean(aiLoading)} />
             <div className="modal-header">
               <h2><FiCpu /> AI Funder Research</h2>
               <button className="modal-close" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
@@ -624,13 +626,13 @@ const Funders = () => {
                 <input
                   type="text"
                   value={aiForm.funder_name}
-                  onChange={(e) => setAiForm({ ...aiForm, funder_name: e.target.value })}
+                  onChange={(e) => setAiForm({ ...aiForm, funder_name: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.funder_name, change: e => setAiForm(previous => ({ ...previous, funder_name: e.target.value })), label: "aiForm.funder_name", sample: '' }, "Funders.funder_name")}
                   placeholder="e.g., Ford Foundation, Bill & Melinda Gates Foundation"
                 />
               </div>
               <div className="form-group">
                 <label>Your Organization (for alignment analysis)</label>
-                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })}>
+                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.organization_id, change: e => setAiForm(previous => ({ ...previous, organization_id: e.target.value })), label: "aiForm.organization_id", sample: '' }, "Funders.organization_id")}>
                   <option value="">Select Organization</option>
                   {organizations.map(org => (
                     <option key={org.id} value={org.id}>{org.name}</option>
@@ -641,7 +643,7 @@ const Funders = () => {
                 <label>Additional Context (Optional)</label>
                 <textarea
                   value={aiForm.additional_info}
-                  onChange={(e) => setAiForm({ ...aiForm, additional_info: e.target.value })}
+                  onChange={(e) => setAiForm({ ...aiForm, additional_info: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.additional_info, change: e => setAiForm(previous => ({ ...previous, additional_info: e.target.value })), label: "aiForm.additional_info", sample: '' }, "Funders.additional_info")}
                   rows="2"
                   placeholder="Any specific questions or context for the research..."
                 />
@@ -667,7 +669,7 @@ const Funders = () => {
                   </div>
                 </div>
                 <div className="ai-output-content markdown-content">
-                  <ReactMarkdown>{aiResult.funder_research}</ReactMarkdown>
+                  <AIReport response={aiResult.funder_research} title="Funders AI result" />
                 </div>
                 <div className="ai-meta">
                   <span>Model: {aiResult.model}</span>

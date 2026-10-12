@@ -28,7 +28,7 @@ const pool = new Pool({
 });
 
 // Create proposal_versions table if needed
-if (process.env.AUTO_INIT_SCHEMA === 'true') pool.query(`
+pool.query(`
   CREATE TABLE IF NOT EXISTS proposal_versions (
     id SERIAL PRIMARY KEY,
     proposal_id INTEGER REFERENCES proposals(id) ON DELETE CASCADE,
@@ -3005,20 +3005,16 @@ app.use('/api/funder-fit-gap-analysis', authenticateToken, require('./routes/fun
 app.use('/api/governed-grant-lifecycle', require('./governance')({ pool, auth: authenticateToken }));
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
 
+// Advisory AI reports only; native execution and approval routes stay unchanged.
+const aiWorkspaceSupport = require("./aiWorkspaceAdapters.cjs");
+const aiWorkspaceDatabase = pool;
+app.use('/api/report-workspace', require("./aiWorkspace.cjs").createAIWorkspaceRouter({
+  pool: aiWorkspaceDatabase, authenticateToken: authenticateToken,
+  aiRateLimiter: aiWorkspaceSupport.createWorkspaceLimiter(), features: require("./aiWorkspaceFeatures.json"),
+}));
 app.use('/api/funder-crm', require('./routes/funderRelationshipCRM'));
 app.use('/api/multi-funder-strategy', require('./routes/multiFunderStrategyPlanner'));
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-// Start server
 
 app.use('/api/gap-no-real-time-funder-deadline-change', route_gap_no_real_time_funder_deadline_change);
 app.use('/api/gap-no-proposal-style-consistency-enforcer-a', route_gap_no_proposal_style_consistency_enforcer_a);
@@ -3028,6 +3024,17 @@ app.use('/api/gap-no-webhook-receivers-for-grant-portal', route_gap_no_webhook_r
 app.use('/api/gap-no-real-time-collaboration-on-proposals', route_gap_no_real_time_collaboration_on_proposals);
 app.use('/api/gap-no-file-upload-pipeline-for-supporting', route_gap_no_file_upload_pipeline_for_supporting);
 app.use('/api/gap-no-e-signature-integration-for-proposal', route_gap_no_e_signature_integration_for_proposal);
+
+// 404 handler — keep AFTER every route mount so additive routes above stay reachable.
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

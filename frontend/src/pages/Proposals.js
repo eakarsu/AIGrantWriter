@@ -28,7 +28,7 @@ const Proposals = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('DESC');
@@ -51,8 +51,8 @@ const Proposals = () => {
       const response = await api.get('/proposals', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setProposals(response.data.data || response.data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setProposals(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch proposals');
     } finally {
@@ -66,8 +66,8 @@ const Proposals = () => {
         api.get('/organizations', { params: { limit: 100 } }),
         api.get('/grants', { params: { limit: 100 } })
       ]);
-      setOrganizations(orgsRes.data.data || orgsRes.data);
-      setGrants(grantsRes.data.data || grantsRes.data);
+      setOrganizations(Array.isArray(orgsRes.data.data) ? orgsRes.data.data : []);
+      setGrants(Array.isArray(grantsRes.data.data) ? grantsRes.data.data : []);
     } catch (error) {
       // silently fail for dropdowns
     }

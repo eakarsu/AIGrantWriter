@@ -4,6 +4,7 @@ import { useToast } from '../components/Toast';
 import SearchBar from '../components/SearchBar';
 import Pagination from '../components/Pagination';
 import ConfirmDialog from '../components/ConfirmDialog';
+import AIReport, { reportText, readableLabel } from '../components/AIReport';
 import { FiClock, FiTrash2, FiEye, FiCopy, FiX, FiFilter } from 'react-icons/fi';
 import './DataPage.css';
 import './AIHistory.css';
@@ -33,7 +34,7 @@ const AIHistory = () => {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedResult, setSelectedResult] = useState(null);
@@ -50,7 +51,7 @@ const AIHistory = () => {
       if (filterType) params.set('tool_type', filterType);
 
       const response = await api.get(`/ai/results?${params.toString()}`);
-      setResults(response.data.results);
+      setResults(Array.isArray(response.data?.results) ? response.data.results : []);
       setTotalItems(response.data.total);
       setTotalPages(response.data.totalPages);
     } catch (error) {
@@ -116,8 +117,8 @@ const AIHistory = () => {
   };
 
   const getSnippet = (content, maxLen = 120) => {
-    if (!content) return '—';
-    const text = content.replace(/[#*_`>\-\[\]()]/g, '').replace(/\n+/g, ' ').trim();
+    if (content === null || content === undefined) return '—';
+    const text = (typeof content === 'string' ? content : reportText(content)).replace(/[#*_`>\-\[\]()]/g, '').replace(/\n+/g, ' ').trim();
     return text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
   };
 
@@ -236,13 +237,13 @@ const AIHistory = () => {
                   <h3>Result</h3>
                   <button
                     className={`btn btn-sm btn-secondary copy-btn ${copied ? 'copied' : ''}`}
-                    onClick={() => handleCopy(selectedResult.content || '')}
+                    onClick={() => handleCopy(reportText(selectedResult.content))}
                   >
                     <FiCopy /> {copied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
                 <div className="detail-content">
-                  <pre>{selectedResult.content}</pre>
+                  <AIReport response={selectedResult.content} title={selectedResult.title || 'Saved AI result'} />
                 </div>
               </div>
 
@@ -252,8 +253,8 @@ const AIHistory = () => {
                   <div className="detail-content detail-input-data">
                     {Object.entries(selectedResult.input_data).map(([key, value]) => (
                       <div key={key} className="input-data-row">
-                        <span className="input-data-key">{key.replace(/_/g, ' ')}:</span>
-                        <span className="input-data-value">{typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}</span>
+                        <span className="input-data-key">{readableLabel(key)}:</span>
+                        <span className="input-data-value">{reportText(value)}</span>
                       </div>
                     ))}
                   </div>

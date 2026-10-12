@@ -24,7 +24,7 @@ const Documents = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('DESC');
@@ -44,8 +44,8 @@ const Documents = () => {
       const response = await api.get('/documents', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setDocuments(response.data.data || response.data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setDocuments(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch documents');
     } finally {
@@ -56,7 +56,7 @@ const Documents = () => {
   const fetchOrganizations = useCallback(async () => {
     try {
       const res = await api.get('/organizations', { params: { limit: 100 } });
-      setOrganizations(res.data.data || res.data);
+      setOrganizations(Array.isArray(res.data.data) ? res.data.data : []);
     } catch (error) {
       // silently fail for dropdowns
     }

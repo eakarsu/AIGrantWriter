@@ -1,8 +1,10 @@
+
+import FullAIExamples, { useFullAIExamples } from "../components/FullAIExamples.jsx";
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../App';
 import { useToast } from '../components/Toast';
-import ReactMarkdown from 'react-markdown';
+import AIReport from '../components/AIReport';
 import {
   FiCpu, FiFileText, FiEdit3, FiCheckSquare,
   FiTarget, FiDollarSign, FiSearch, FiZap,
@@ -12,6 +14,8 @@ import {
 import './AITools.css';
 
 const AITools = () => {
+  const fullAIExamples = useFullAIExamples();
+
   const toast = useToast();
   const navigate = useNavigate();
   const [organizations, setOrganizations] = useState([]);
@@ -380,8 +384,8 @@ Target population: adults 18-55 from communities disproportionately affected by 
         api.get('/organizations'),
         api.get('/grants')
       ]);
-      setOrganizations(orgsRes.data);
-      setGrants(grantsRes.data);
+      setOrganizations(Array.isArray(orgsRes.data?.data) ? orgsRes.data.data : []);
+      setGrants(Array.isArray(grantsRes.data?.data) ? grantsRes.data.data : []);
     } catch (error) {
       toast.error('Failed to load data');
     }
@@ -660,7 +664,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
   ];
 
   return (
-    <div className="ai-tools-page">
+    <div className="ai-tools-page" data-full-ai-workspace="AITools"><FullAIExamples controller={fullAIExamples} disabled={Boolean(loading)} />
       <div className="page-header">
         <div>
           <h1><FiCpu /> AI Tools</h1>
@@ -706,14 +710,14 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 <div className="form-row">
                   <div className="form-group">
                     <label>Organization *</label>
-                    <select value={generateForm.organization_id} onChange={(e) => setGenerateForm({ ...generateForm, organization_id: e.target.value })}>
+                    <select value={generateForm.organization_id} onChange={(e) => setGenerateForm({ ...generateForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: generateForm.organization_id, change: (e) => setGenerateForm({ ...generateForm, organization_id: e.target.value }), label: "generateForm.organization_id", manual: false, json: false, sample: '' }, "p1-35729", undefined)}>
                       <option value="">Select Organization</option>
                       {organizations.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                     </select>
                   </div>
                   <div className="form-group">
                     <label>Grant Opportunity *</label>
-                    <select value={generateForm.grant_id} onChange={(e) => setGenerateForm({ ...generateForm, grant_id: e.target.value })}>
+                    <select value={generateForm.grant_id} onChange={(e) => setGenerateForm({ ...generateForm, grant_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: generateForm.grant_id, change: (e) => setGenerateForm({ ...generateForm, grant_id: e.target.value }), label: "generateForm.grant_id", manual: false, json: false, sample: '' }, "p1-36216", undefined)}>
                       <option value="">Select Grant</option>
                       {grants.map(grant => (<option key={grant.id} value={grant.id}>{grant.title}</option>))}
                     </select>
@@ -721,7 +725,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 </div>
                 <div className="form-group">
                   <label>Additional Context (Optional)</label>
-                  <textarea value={generateForm.additional_context} onChange={(e) => setGenerateForm({ ...generateForm, additional_context: e.target.value })} rows="3" placeholder="Add any specific requirements, focus areas, or additional information..." />
+                  <textarea value={generateForm.additional_context} onChange={(e) => setGenerateForm({ ...generateForm, additional_context: e.target.value })} rows="3" placeholder="Add any specific requirements, focus areas, or additional information..." data-full-ai-field={fullAIExamples.bind({ current: generateForm.additional_context, change: (e) => setGenerateForm({ ...generateForm, additional_context: e.target.value }), label: "generateForm.additional_context", manual: false, json: false, sample: '' }, "p1-36711", undefined)} />
                 </div>
                 <button className="btn btn-primary generate-btn" onClick={handleGenerate} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Generating...</> : <><FiZap /> Generate Proposal</>}
@@ -749,7 +753,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Improvement Type</label>
-                  <select value={improveForm.improvement_type} onChange={(e) => setImproveForm({ ...improveForm, improvement_type: e.target.value })}>
+                  <select value={improveForm.improvement_type} onChange={(e) => setImproveForm({ ...improveForm, improvement_type: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: improveForm.improvement_type, change: (e) => setImproveForm({ ...improveForm, improvement_type: e.target.value }), label: "improveForm.improvement_type", manual: false, json: false, sample: 'clarity' }, "p1-38205", undefined)}>
                     <option value="clarity">Improve Clarity</option>
                     <option value="persuasive">Make More Persuasive</option>
                     <option value="concise">Make More Concise</option>
@@ -759,7 +763,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 </div>
                 <div className="form-group">
                   <label>Text to Improve *</label>
-                  <textarea value={improveForm.text} onChange={(e) => setImproveForm({ ...improveForm, text: e.target.value })} rows="8" placeholder="Paste your text here..." />
+                  <textarea value={improveForm.text} onChange={(e) => setImproveForm({ ...improveForm, text: e.target.value })} rows="8" placeholder="Paste your text here..." data-full-ai-field={fullAIExamples.bind({ current: improveForm.text, change: (e) => setImproveForm({ ...improveForm, text: e.target.value }), label: "improveForm.text", manual: false, json: false, sample: '' }, "p1-38876", undefined)} />
                 </div>
                 <button className="btn btn-success generate-btn" onClick={handleImprove} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Improving...</> : <><FiZap /> Improve Text</>}
@@ -787,7 +791,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Maximum Words</label>
-                  <select value={summaryForm.max_words} onChange={(e) => setSummaryForm({ ...summaryForm, max_words: parseInt(e.target.value) })}>
+                  <select value={summaryForm.max_words} onChange={(e) => setSummaryForm({ ...summaryForm, max_words: parseInt(e.target.value) })} data-full-ai-field={fullAIExamples.bind({ current: summaryForm.max_words, change: (e) => setSummaryForm({ ...summaryForm, max_words: parseInt(e.target.value) }), label: "summaryForm.max_words", manual: false, json: false, sample: 300 }, "p1-40313", undefined)}>
                     <option value="150">150 words</option>
                     <option value="200">200 words</option>
                     <option value="300">300 words</option>
@@ -796,7 +800,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 </div>
                 <div className="form-group">
                   <label>Proposal Content *</label>
-                  <textarea value={summaryForm.proposal_content} onChange={(e) => setSummaryForm({ ...summaryForm, proposal_content: e.target.value })} rows="10" placeholder="Paste your full proposal content here..." />
+                  <textarea value={summaryForm.proposal_content} onChange={(e) => setSummaryForm({ ...summaryForm, proposal_content: e.target.value })} rows="10" placeholder="Paste your full proposal content here..." data-full-ai-field={fullAIExamples.bind({ current: summaryForm.proposal_content, change: (e) => setSummaryForm({ ...summaryForm, proposal_content: e.target.value }), label: "summaryForm.proposal_content", manual: false, json: false, sample: '' }, "p1-40844", undefined)} />
                 </div>
                 <button className="btn btn-warning generate-btn" onClick={handleSummary} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Generating...</> : <><FiZap /> Generate Summary</>}
@@ -824,7 +828,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Organization *</label>
-                  <select value={matchForm.organization_id} onChange={(e) => setMatchForm({ ...matchForm, organization_id: e.target.value })}>
+                  <select value={matchForm.organization_id} onChange={(e) => setMatchForm({ ...matchForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: matchForm.organization_id, change: (e) => setMatchForm({ ...matchForm, organization_id: e.target.value }), label: "matchForm.organization_id", manual: false, json: false, sample: '' }, "p1-42314", undefined)}>
                     <option value="">Select Organization</option>
                     {organizations.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                   </select>
@@ -856,7 +860,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Proposal Content *</label>
-                  <textarea value={reviewForm.proposal_content} onChange={(e) => setReviewForm({ ...reviewForm, proposal_content: e.target.value })} rows="10" placeholder="Paste your proposal content for review..." />
+                  <textarea value={reviewForm.proposal_content} onChange={(e) => setReviewForm({ ...reviewForm, proposal_content: e.target.value })} rows="10" placeholder="Paste your proposal content for review..." data-full-ai-field={fullAIExamples.bind({ current: reviewForm.proposal_content, change: (e) => setReviewForm({ ...reviewForm, proposal_content: e.target.value }), label: "reviewForm.proposal_content", manual: false, json: false, sample: '' }, "p1-44157", undefined)} />
                 </div>
                 <button className="btn generate-btn" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)', color: 'white' }} onClick={handleReview} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Reviewing...</> : <><FiZap /> Review Proposal</>}
@@ -885,16 +889,16 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 <div className="form-row">
                   <div className="form-group">
                     <label>Total Amount Requested ($)</label>
-                    <input type="number" value={budgetForm.total_amount} onChange={(e) => setBudgetForm({ ...budgetForm, total_amount: e.target.value })} placeholder="e.g., 100000" />
+                    <input type="number" value={budgetForm.total_amount} onChange={(e) => setBudgetForm({ ...budgetForm, total_amount: e.target.value })} placeholder="e.g., 100000" data-full-ai-field={fullAIExamples.bind({ current: budgetForm.total_amount, change: (e) => setBudgetForm({ ...budgetForm, total_amount: e.target.value }), label: "budgetForm.total_amount", manual: false, json: false, sample: '' }, "p1-45763", undefined)} />
                   </div>
                   <div className="form-group">
                     <label>Budget Categories</label>
-                    <input type="text" value={budgetForm.categories} onChange={(e) => setBudgetForm({ ...budgetForm, categories: e.target.value })} placeholder="e.g., Personnel, Equipment, Travel" />
+                    <input type="text" value={budgetForm.categories} onChange={(e) => setBudgetForm({ ...budgetForm, categories: e.target.value })} placeholder="e.g., Personnel, Equipment, Travel" data-full-ai-field={fullAIExamples.bind({ current: budgetForm.categories, change: (e) => setBudgetForm({ ...budgetForm, categories: e.target.value }), label: "budgetForm.categories", manual: false, json: false, sample: '' }, "p1-46072", undefined)} />
                   </div>
                 </div>
                 <div className="form-group">
                   <label>Project Description *</label>
-                  <textarea value={budgetForm.project_description} onChange={(e) => setBudgetForm({ ...budgetForm, project_description: e.target.value })} rows="6" placeholder="Describe your project and its activities..." />
+                  <textarea value={budgetForm.project_description} onChange={(e) => setBudgetForm({ ...budgetForm, project_description: e.target.value })} rows="6" placeholder="Describe your project and its activities..." data-full-ai-field={fullAIExamples.bind({ current: budgetForm.project_description, change: (e) => setBudgetForm({ ...budgetForm, project_description: e.target.value }), label: "budgetForm.project_description", manual: false, json: false, sample: '' }, "p1-46418", undefined)} />
                 </div>
                 <button className="btn generate-btn" style={{ background: 'linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)', color: 'white' }} onClick={handleBudget} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Generating...</> : <><FiZap /> Generate Budget</>}
@@ -922,18 +926,18 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Organization (Optional)</label>
-                  <select value={impactForm.organization_id} onChange={(e) => setImpactForm({ ...impactForm, organization_id: e.target.value })}>
+                  <select value={impactForm.organization_id} onChange={(e) => setImpactForm({ ...impactForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: impactForm.organization_id, change: (e) => setImpactForm({ ...impactForm, organization_id: e.target.value }), label: "impactForm.organization_id", manual: false, json: false, sample: '' }, "p1-47976", undefined)}>
                     <option value="">Select Organization</option>
                     {organizations.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                   </select>
                 </div>
                 <div className="form-group">
                   <label>Project Description *</label>
-                  <textarea value={impactForm.project_description} onChange={(e) => setImpactForm({ ...impactForm, project_description: e.target.value })} rows="5" placeholder="Describe your project, goals, and target population..." />
+                  <textarea value={impactForm.project_description} onChange={(e) => setImpactForm({ ...impactForm, project_description: e.target.value })} rows="5" placeholder="Describe your project, goals, and target population..." data-full-ai-field={fullAIExamples.bind({ current: impactForm.project_description, change: (e) => setImpactForm({ ...impactForm, project_description: e.target.value }), label: "impactForm.project_description", manual: false, json: false, sample: '' }, "p1-48445", undefined)} />
                 </div>
                 <div className="form-group">
                   <label>Current Metrics (Optional)</label>
-                  <textarea value={impactForm.current_metrics} onChange={(e) => setImpactForm({ ...impactForm, current_metrics: e.target.value })} rows="2" placeholder="List any metrics you're already tracking..." />
+                  <textarea value={impactForm.current_metrics} onChange={(e) => setImpactForm({ ...impactForm, current_metrics: e.target.value })} rows="2" placeholder="List any metrics you're already tracking..." data-full-ai-field={fullAIExamples.bind({ current: impactForm.current_metrics, change: (e) => setImpactForm({ ...impactForm, current_metrics: e.target.value }), label: "impactForm.current_metrics", manual: false, json: false, sample: '' }, "p1-48809", undefined)} />
                 </div>
                 <button className="btn generate-btn" style={{ background: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)', color: 'white' }} onClick={handleImpact} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Analyzing...</> : <><FiTrendingUp /> Generate Impact Framework</>}
@@ -961,7 +965,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Organization (Optional)</label>
-                  <select value={deadlineForm.organization_id} onChange={(e) => setDeadlineForm({ ...deadlineForm, organization_id: e.target.value })}>
+                  <select value={deadlineForm.organization_id} onChange={(e) => setDeadlineForm({ ...deadlineForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: deadlineForm.organization_id, change: (e) => setDeadlineForm({ ...deadlineForm, organization_id: e.target.value }), label: "deadlineForm.organization_id", manual: false, json: false, sample: '' }, "p1-50390", undefined)}>
                     <option value="">All Organizations</option>
                     {organizations.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                   </select>
@@ -993,18 +997,18 @@ Target population: adults 18-55 from communities disproportionately affected by 
               <div className="tool-form">
                 <div className="form-group">
                   <label>Funder Name to Research *</label>
-                  <input type="text" value={funderForm.funder_name} onChange={(e) => setFunderForm({ ...funderForm, funder_name: e.target.value })} placeholder="e.g., Ford Foundation, Bill & Melinda Gates Foundation" />
+                  <input type="text" value={funderForm.funder_name} onChange={(e) => setFunderForm({ ...funderForm, funder_name: e.target.value })} placeholder="e.g., Ford Foundation, Bill & Melinda Gates Foundation" data-full-ai-field={fullAIExamples.bind({ current: funderForm.funder_name, change: (e) => setFunderForm({ ...funderForm, funder_name: e.target.value }), label: "funderForm.funder_name", manual: false, json: false, sample: '' }, "p1-52258", undefined)} />
                 </div>
                 <div className="form-group">
                   <label>Your Organization (for alignment analysis)</label>
-                  <select value={funderForm.organization_id} onChange={(e) => setFunderForm({ ...funderForm, organization_id: e.target.value })}>
+                  <select value={funderForm.organization_id} onChange={(e) => setFunderForm({ ...funderForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: funderForm.organization_id, change: (e) => setFunderForm({ ...funderForm, organization_id: e.target.value }), label: "funderForm.organization_id", manual: false, json: false, sample: '' }, "p1-52622", undefined)}>
                     <option value="">Select Organization</option>
                     {organizations.map(org => (<option key={org.id} value={org.id}>{org.name}</option>))}
                   </select>
                 </div>
                 <div className="form-group">
                   <label>Additional Context (Optional)</label>
-                  <textarea value={funderForm.additional_info} onChange={(e) => setFunderForm({ ...funderForm, additional_info: e.target.value })} rows="2" placeholder="Any specific questions or context for the research..." />
+                  <textarea value={funderForm.additional_info} onChange={(e) => setFunderForm({ ...funderForm, additional_info: e.target.value })} rows="2" placeholder="Any specific questions or context for the research..." data-full-ai-field={fullAIExamples.bind({ current: funderForm.additional_info, change: (e) => setFunderForm({ ...funderForm, additional_info: e.target.value }), label: "funderForm.additional_info", manual: false, json: false, sample: '' }, "p1-53099", undefined)} />
                 </div>
                 <button className="btn generate-btn" style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)', color: 'white' }} onClick={handleFunder} disabled={loading}>
                   {loading ? <><FiRefreshCw className="spinning" /> Researching...</> : <><FiSearch /> Research Funder</>}
@@ -1062,7 +1066,7 @@ Target population: adults 18-55 from communities disproportionately affected by 
                 </div>
               </div>
               <div className="ai-output-content">
-                <ReactMarkdown>{aiResult.content}</ReactMarkdown>
+                <AIReport response={aiResult.content} title="AI result" />
               </div>
             </div>
           )}

@@ -1,3 +1,5 @@
+import FullAIExamples, { useFullAIExamples } from '../components/FullAIExamples.jsx';
+import AIReport from '../components/AIReport';
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../App';
 import { useToast } from '../components/Toast';
@@ -7,7 +9,6 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import SortControl from '../components/SortControl';
 import { exportToPdf } from '../utils/exportPdf';
-import ReactMarkdown from 'react-markdown';
 import {
   FiPlus, FiEdit2, FiTrash2, FiX, FiTarget,
   FiCpu, FiRefreshCw, FiCopy, FiDownload, FiTrendingUp, FiCheck, FiFileText
@@ -15,6 +16,7 @@ import {
 import './DataPage.css';
 
 const ImpactMetrics = () => {
+  const fullAIExamples = useFullAIExamples();
   const toast = useToast();
   const [metrics, setMetrics] = useState([]);
   const [organizations, setOrganizations] = useState([]);
@@ -26,7 +28,7 @@ const ImpactMetrics = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [totalItems, setTotalItems] = useState(0);
   const [sortField, setSortField] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('DESC');
@@ -67,8 +69,8 @@ const ImpactMetrics = () => {
       const response = await api.get('/impact-metrics', {
         params: { search: searchQuery, page: currentPage, limit: itemsPerPage, sort: sortField, order: sortOrder }
       });
-      setMetrics(response.data.data || response.data);
-      setTotalItems(response.data.total || (response.data.data ? response.data.total : response.data.length));
+      setMetrics(Array.isArray(response.data.data) ? response.data.data : []);
+      setTotalItems(Number(response.data?.total) || 0);
     } catch (error) {
       toast.error('Failed to fetch metrics');
     } finally {
@@ -82,8 +84,8 @@ const ImpactMetrics = () => {
         api.get('/organizations', { params: { limit: 100 } }),
         api.get('/proposals', { params: { limit: 100 } })
       ]);
-      setOrganizations(orgsRes.data.data || orgsRes.data);
-      setProposals(proposalsRes.data.data || proposalsRes.data);
+      setOrganizations(Array.isArray(orgsRes.data.data) ? orgsRes.data.data : []);
+      setProposals(Array.isArray(proposalsRes.data.data) ? proposalsRes.data.data : []);
     } catch (error) {
       // silently fail for dropdowns
     }
@@ -587,7 +589,7 @@ const ImpactMetrics = () => {
       {/* AI Generate Modal */}
       {showAIModal && (
         <div className="modal-overlay" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
-          <div className="modal modal-large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal modal-large" onClick={(e) => e.stopPropagation()} data-full-ai-workspace="ImpactMetrics"><FullAIExamples controller={fullAIExamples} disabled={Boolean(aiLoading)} />
             <div className="modal-header">
               <h2><FiCpu /> AI Impact Framework Generator</h2>
               <button className="modal-close" onClick={() => { setShowAIModal(false); setAiResult(null); }}>
@@ -603,7 +605,7 @@ const ImpactMetrics = () => {
               </div>
               <div className="form-group">
                 <label>Organization (Optional)</label>
-                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })}>
+                <select value={aiForm.organization_id} onChange={(e) => setAiForm({ ...aiForm, organization_id: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.organization_id, change: e => setAiForm(previous => ({ ...previous, organization_id: e.target.value })), label: "aiForm.organization_id", sample: '' }, "ImpactMetrics.organization_id")}>
                   <option value="">Select Organization</option>
                   {organizations.map(org => (
                     <option key={org.id} value={org.id}>{org.name}</option>
@@ -614,7 +616,7 @@ const ImpactMetrics = () => {
                 <label>Project Description *</label>
                 <textarea
                   value={aiForm.project_description}
-                  onChange={(e) => setAiForm({ ...aiForm, project_description: e.target.value })}
+                  onChange={(e) => setAiForm({ ...aiForm, project_description: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.project_description, change: e => setAiForm(previous => ({ ...previous, project_description: e.target.value })), label: "aiForm.project_description", sample: '' }, "ImpactMetrics.project_description")}
                   rows="4"
                   placeholder="Describe your project, goals, and target population..."
                 />
@@ -623,7 +625,7 @@ const ImpactMetrics = () => {
                 <label>Current Metrics (Optional)</label>
                 <textarea
                   value={aiForm.current_metrics}
-                  onChange={(e) => setAiForm({ ...aiForm, current_metrics: e.target.value })}
+                  onChange={(e) => setAiForm({ ...aiForm, current_metrics: e.target.value })} data-full-ai-field={fullAIExamples.bind({ current: aiForm.current_metrics, change: e => setAiForm(previous => ({ ...previous, current_metrics: e.target.value })), label: "aiForm.current_metrics", sample: '' }, "ImpactMetrics.current_metrics")}
                   rows="2"
                   placeholder="List any metrics you're already tracking..."
                 />
@@ -649,7 +651,7 @@ const ImpactMetrics = () => {
                   </div>
                 </div>
                 <div className="ai-output-content markdown-content">
-                  <ReactMarkdown>{aiResult.impact_analysis}</ReactMarkdown>
+                  <AIReport response={aiResult.impact_analysis} title="ImpactMetrics AI result" />
                 </div>
                 <div className="ai-meta">
                   <span>Model: {aiResult.model}</span>
