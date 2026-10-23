@@ -20,6 +20,7 @@ const route_gap_no_real_time_collaboration_on_proposals = require('./routes/gap-
 const route_gap_no_file_upload_pipeline_for_supporting = require('./routes/gap-no-file-upload-pipeline-for-supporting');
 const route_gap_no_e_signature_integration_for_proposal = require('./routes/gap-no-e-signature-integration-for-proposal');
 const app = express();
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 const PORT = process.env.BACKEND_PORT || 3001;
 
 // Database connection
@@ -3000,6 +3001,7 @@ Be precise about the difference between archetype and named funder.`;
 
 // Custom Views (4 features: success-rate, priority-heatmap, proposal PDF, rules editor)
 // MUST mount before the 404 handler below.
+app.use('/api/feature-pack', authenticateToken, require('./featurePack').createRouter());
 app.use('/api/custom-views', require('./routes/customViews'));
 app.use('/api/funder-fit-gap-analysis', authenticateToken, require('./routes/funderFitGapAnalysis'));
 app.use('/api/governed-grant-lifecycle', require('./governance')({ pool, auth: authenticateToken }));

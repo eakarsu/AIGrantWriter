@@ -11,18 +11,22 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const signInWith = async (loginEmail, loginPassword) => {
     setError('');
     setLoading(true);
 
     try {
-      await login(email, password);
+      await login(loginEmail, loginPassword);
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await signInWith(email, password);
   };
 
   return (
@@ -74,8 +78,14 @@ const Login = () => {
 
             <button
               type="button"
-              onClick={() => { setEmail(process.env.REACT_APP_DEMO_EMAIL || ''); setPassword(process.env.REACT_APP_DEMO_PASSWORD || ''); setError(''); }}
-              disabled={!process.env.REACT_APP_DEMO_EMAIL || !process.env.REACT_APP_DEMO_PASSWORD}
+              onClick={() => {
+                const demoEmail = process.env.REACT_APP_DEMO_EMAIL || '';
+                const demoPassword = process.env.REACT_APP_DEMO_PASSWORD || '';
+                setEmail(demoEmail);
+                setPassword(demoPassword);
+                signInWith(demoEmail, demoPassword);
+              }}
+              disabled={loading || !process.env.REACT_APP_DEMO_EMAIL || !process.env.REACT_APP_DEMO_PASSWORD}
               aria-label="Fill demo credentials"
               style={{ width: '100%', marginBottom: '12px', padding: '10px 14px', borderRadius: '8px', border: '1px solid currentColor', background: 'transparent', cursor: 'pointer' }}
             >
